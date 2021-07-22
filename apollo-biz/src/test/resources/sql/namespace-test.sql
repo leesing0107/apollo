@@ -1,3 +1,18 @@
+--
+-- Copyright 2021 Apollo Authors
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+-- http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
 INSERT INTO `app` ( `AppId`, `Name`, `OrgId`, `OrgName`, `OwnerName`, `OwnerEmail`, `IsDeleted`, `DataChange_CreatedBy`, `DataChange_LastModifiedBy`)VALUES('testApp', 'test', 'default', 'default', 'default', 'default', 0, 'default', 'default');
 
 INSERT INTO `cluster` (`ID`, `Name`, `AppId`, `ParentClusterId`, `IsDeleted`, `DataChange_CreatedBy`, `DataChange_LastModifiedBy`) VALUES (1, 'default', 'testApp', 0, 0, 'default', 'default');
@@ -9,6 +24,7 @@ INSERT INTO `namespace` (`ID`, `AppId`, `ClusterName`, `NamespaceName`, `IsDelet
 INSERT INTO `namespace` (`AppId`, `ClusterName`, `NamespaceName`, `IsDeleted`, `DataChange_CreatedBy`, `DataChange_LastModifiedBy`)VALUES('testApp', 'child-cluster', 'application', 0, 'apollo', 'apollo');
 
 INSERT INTO `commit` (`ChangeSets`, `AppId`, `ClusterName`, `NamespaceName`)VALUES('{}', 'testApp', 'default', 'application');
+INSERT INTO `commit` (`ChangeSets`, `AppId`, `ClusterName`, `NamespaceName`, `DataChange_LastTime`)VALUES('{}', 'commitTestApp', 'default', 'application', '2020-08-22 10:00:00');
 
 INSERT INTO `item` (`NamespaceId`, `Key`, `Value`, `Comment`, `LineNum`)VALUES(1, 'k1', 'v1', '', 1);
 

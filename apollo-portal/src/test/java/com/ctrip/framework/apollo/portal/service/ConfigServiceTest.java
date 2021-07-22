@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.portal.service;
 
 import com.ctrip.framework.apollo.common.dto.ItemChangeSets;
@@ -5,7 +21,7 @@ import com.ctrip.framework.apollo.common.dto.ItemDTO;
 import com.ctrip.framework.apollo.common.dto.NamespaceDTO;
 import com.ctrip.framework.apollo.core.ConfigConsts;
 import com.ctrip.framework.apollo.core.enums.ConfigFileFormat;
-import com.ctrip.framework.apollo.core.enums.Env;
+import com.ctrip.framework.apollo.portal.environment.Env;
 import com.ctrip.framework.apollo.portal.AbstractUnitTest;
 import com.ctrip.framework.apollo.portal.api.AdminServiceAPI;
 import com.ctrip.framework.apollo.portal.spi.UserInfoHolder;
@@ -15,6 +31,7 @@ import com.ctrip.framework.apollo.portal.entity.model.NamespaceTextModel;
 import com.ctrip.framework.apollo.portal.entity.vo.ItemDiffs;
 import com.ctrip.framework.apollo.portal.entity.vo.NamespaceIdentifier;
 
+import java.util.Collections;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -26,6 +43,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ConfigServiceTest extends AbstractUnitTest {
@@ -54,6 +72,7 @@ public class ConfigServiceTest extends AbstractUnitTest {
     String appId = "6666";
     String clusterName = "default";
     String namespaceName = "application";
+    long someNamespaceId = 123L;
 
     NamespaceTextModel model = new NamespaceTextModel();
     model.setEnv("DEV");
@@ -66,8 +85,12 @@ public class ConfigServiceTest extends AbstractUnitTest {
     ItemChangeSets changeSets = new ItemChangeSets();
     changeSets.addCreateItem(new ItemDTO("d", "c", "", 4));
 
+    NamespaceDTO someNamespaceDto = mock(NamespaceDTO.class);
+    when(someNamespaceDto.getId()).thenReturn(someNamespaceId);
+    when(namespaceAPI.loadNamespace(appId, model.getEnv(), clusterName, namespaceName))
+        .thenReturn(someNamespaceDto);
     when(itemAPI.findItems(appId, Env.DEV, clusterName, namespaceName)).thenReturn(itemDTOs);
-    when(resolver.resolve(0, model.getConfigText(), itemDTOs)).thenReturn(changeSets);
+    when(resolver.resolve(someNamespaceId, model.getConfigText(), itemDTOs)).thenReturn(changeSets);
 
     UserInfo userInfo = new UserInfo();
     userInfo.setUserId("test");
@@ -94,7 +117,7 @@ public class ConfigServiceTest extends AbstractUnitTest {
   @Test
   public void testCompareTargetNamespaceHasNoItems() {
     ItemDTO sourceItem1 = new ItemDTO("a", "b", "comment", 1);
-    List<ItemDTO> sourceItems = Arrays.asList(sourceItem1);
+    List<ItemDTO> sourceItems = Collections.singletonList(sourceItem1);
 
     String appId = "6666", env = "LOCAL", clusterName = ConfigConsts.CLUSTER_NAME_DEFAULT,
         namespaceName = ConfigConsts.NAMESPACE_APPLICATION;
@@ -207,7 +230,7 @@ public class ConfigServiceTest extends AbstractUnitTest {
     targetNamespace.setEnv(env);
     targetNamespace.setClusterName(clusterName);
     targetNamespace.setNamespaceName(namespaceName);
-    return Arrays.asList(targetNamespace);
+    return Collections.singletonList(targetNamespace);
   }
 
 }

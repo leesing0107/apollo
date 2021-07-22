@@ -1,19 +1,33 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.biz.message;
-
-import com.google.common.collect.Queues;
 
 import com.ctrip.framework.apollo.biz.entity.ReleaseMessage;
 import com.ctrip.framework.apollo.biz.repository.ReleaseMessageRepository;
 import com.ctrip.framework.apollo.core.utils.ApolloThreadFactory;
 import com.ctrip.framework.apollo.tracer.Tracer;
 import com.ctrip.framework.apollo.tracer.spi.Transaction;
-
+import com.google.common.collect.Queues;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.annotation.PostConstruct;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
@@ -21,8 +35,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import javax.annotation.PostConstruct;
 
 /**
  * @author Jason Song(song_s@ctrip.com)
@@ -35,12 +47,12 @@ public class DatabaseMessageSender implements MessageSender {
   private final ExecutorService cleanExecutorService;
   private final AtomicBoolean cleanStopped;
 
-  @Autowired
-  private ReleaseMessageRepository releaseMessageRepository;
+  private final ReleaseMessageRepository releaseMessageRepository;
 
-  public DatabaseMessageSender() {
+  public DatabaseMessageSender(final ReleaseMessageRepository releaseMessageRepository) {
     cleanExecutorService = Executors.newSingleThreadExecutor(ApolloThreadFactory.create("DatabaseMessageSender", true));
     cleanStopped = new AtomicBoolean(false);
+    this.releaseMessageRepository = releaseMessageRepository;
   }
 
   @Override
@@ -48,7 +60,7 @@ public class DatabaseMessageSender implements MessageSender {
   public void sendMessage(String message, String channel) {
     logger.info("Sending message {} to channel {}", message, channel);
     if (!Objects.equals(channel, Topics.APOLLO_RELEASE_TOPIC)) {
-      logger.warn("Channel {} not supported by DatabaseMessageSender!");
+      logger.warn("Channel {} not supported by DatabaseMessageSender!", channel);
       return;
     }
 
@@ -86,17 +98,17 @@ public class DatabaseMessageSender implements MessageSender {
   }
 
   private void cleanMessage(Long id) {
-    boolean hasMore = true;
     //double check in case the release message is rolled back
-    ReleaseMessage releaseMessage = releaseMessageRepository.findOne(id);
+    ReleaseMessage releaseMessage = releaseMessageRepository.findById(id).orElse(null);
     if (releaseMessage == null) {
       return;
     }
+    boolean hasMore = true;
     while (hasMore && !Thread.currentThread().isInterrupted()) {
       List<ReleaseMessage> messages = releaseMessageRepository.findFirst100ByMessageAndIdLessThanOrderByIdAsc(
           releaseMessage.getMessage(), releaseMessage.getId());
 
-      releaseMessageRepository.delete(messages);
+      releaseMessageRepository.deleteAll(messages);
       hasMore = messages.size() == 100;
 
       messages.forEach(toRemove -> Tracer.logEvent(

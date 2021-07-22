@@ -1,3 +1,18 @@
+--
+-- Copyright 2021 Apollo Authors
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+-- http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
 INSERT INTO `app` ( `AppId`, `Name`, `OrgId`, `OrgName`, `OwnerName`, `OwnerEmail`, `IsDeleted`, `DataChange_CreatedBy`, `DataChange_LastModifiedBy`)VALUES('test', 'test0620-06', 'default', 'default', 'default', 'default', 0, 'default', 'default');
 
 /* normal namespace*/
@@ -96,4 +111,4 @@ INSERT INTO `namespace` (ID, `AppId`, `ClusterName`, `NamespaceName`, `IsDeleted
 
 INSERT INTO `release` (`Id`, `ReleaseKey`, `Name`, `Comment`, `AppId`, `ClusterName`, `NamespaceName`, `Configurations`, `IsAbandoned`)VALUES(6, '20160823102253-fc0071ddf9fd3260', '20160823101703-release', '', 'test', 'default6', 'application', '{"k1":"v1-1","k2":"v2-1","k3":"v3"}', 0);
 INSERT INTO `release` (`Id`, `ReleaseKey`, `Name`, `Comment`, `AppId`, `ClusterName`, `NamespaceName`, `Configurations`, `IsAbandoned`)VALUES(7, '20160823102253-fc0071ddf9fd3260', '20160823101703-release', '', 'test', 'default6', 'application', '{"k1":"v1","k2":"v2"}', 0);
-INSERT INTO `release` (`Id`, `ReleaseKey`, `Name`, `Comment`, `AppId`, `ClusterName`, `NamespaceName`, `Configurations`, `IsAbandoned`)VALUES(8, '20160823102253-fc0071ddf9fd3260', '20160823101703-release', '', 'test', 'child-cluster6', 'application', '{"k1":"v1-2","k2":"v2-1","k3":"v3"}', 0);
+INSERT INTO `release` (`Id`, `ReleaseKey`, `Name`, `Comment`, `AppId`, `ClusterName`, `NamespaceName`, `Configurations`, `IsAbandoned`)VALUES(8, '20160823102253-fc0071ddf9fd3260', '20160823101703-release', '', 'test', 'child-cluster6', 'application', '{"k1":"v1-2","k2":"v2","k3":"v3"}', 0);

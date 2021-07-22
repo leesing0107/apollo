@@ -1,21 +1,20 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.configservice.controller;
-
-import java.io.IOException;
-import java.lang.reflect.Type;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
-
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
 
 import com.ctrip.framework.apollo.biz.entity.Release;
 import com.ctrip.framework.apollo.common.entity.AppNamespace;
@@ -33,6 +32,20 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.lang.reflect.Type;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * @author Jason Song(song_s@ctrip.com)
@@ -42,21 +55,29 @@ import com.google.gson.reflect.TypeToken;
 public class ConfigController {
   private static final Splitter X_FORWARDED_FOR_SPLITTER = Splitter.on(",").omitEmptyStrings()
       .trimResults();
-  @Autowired
-  private ConfigService configService;
-  @Autowired
-  private AppNamespaceServiceWithCache appNamespaceService;
-  @Autowired
-  private NamespaceUtil namespaceUtil;
-  @Autowired
-  private InstanceConfigAuditUtil instanceConfigAuditUtil;
-  @Autowired
-  private Gson gson;
+  private final ConfigService configService;
+  private final AppNamespaceServiceWithCache appNamespaceService;
+  private final NamespaceUtil namespaceUtil;
+  private final InstanceConfigAuditUtil instanceConfigAuditUtil;
+  private final Gson gson;
 
   private static final Type configurationTypeReference = new TypeToken<Map<String, String>>() {
       }.getType();
 
-  @RequestMapping(value = "/{appId}/{clusterName}/{namespace:.+}", method = RequestMethod.GET)
+  public ConfigController(
+      final ConfigService configService,
+      final AppNamespaceServiceWithCache appNamespaceService,
+      final NamespaceUtil namespaceUtil,
+      final InstanceConfigAuditUtil instanceConfigAuditUtil,
+      final Gson gson) {
+    this.configService = configService;
+    this.appNamespaceService = appNamespaceService;
+    this.namespaceUtil = namespaceUtil;
+    this.instanceConfigAuditUtil = instanceConfigAuditUtil;
+    this.gson = gson;
+  }
+
+  @GetMapping(value = "/{appId}/{clusterName}/{namespace:.+}")
   public ApolloConfig queryConfig(@PathVariable String appId, @PathVariable String clusterName,
                                   @PathVariable String namespace,
                                   @RequestParam(value = "dataCenter", required = false) String dataCenter,
@@ -94,7 +115,7 @@ public class ConfigController {
     if (!namespaceBelongsToAppId(appId, namespace)) {
       Release publicRelease = this.findPublicConfig(appId, clientIp, clusterName, namespace,
           dataCenter, clientMessages);
-      if (!Objects.isNull(publicRelease)) {
+      if (Objects.nonNull(publicRelease)) {
         releases.add(publicRelease);
       }
     }
@@ -172,7 +193,7 @@ public class ConfigController {
    * Release in lower index override those in higher index
    */
   Map<String, String> mergeReleaseConfigurations(List<Release> releases) {
-    Map<String, String> result = Maps.newHashMap();
+    Map<String, String> result = Maps.newLinkedHashMap();
     for (Release release : Lists.reverse(releases)) {
       result.putAll(gson.fromJson(release.getConfigurations(), configurationTypeReference));
     }
@@ -184,7 +205,7 @@ public class ConfigController {
     if (!Strings.isNullOrEmpty(dataCenter)) {
       keyParts.add(dataCenter);
     }
-    return keyParts.stream().collect(Collectors.joining(ConfigConsts.CLUSTER_NAMESPACE_SEPARATOR));
+    return String.join(ConfigConsts.CLUSTER_NAMESPACE_SEPARATOR, keyParts);
   }
 
   private void auditReleases(String appId, String cluster, String dataCenter, String clientIp,

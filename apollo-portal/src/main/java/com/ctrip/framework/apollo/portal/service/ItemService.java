@@ -1,13 +1,34 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.portal.service;
 
 
+import com.ctrip.framework.apollo.common.constants.GsonType;
 import com.ctrip.framework.apollo.common.dto.ItemChangeSets;
 import com.ctrip.framework.apollo.common.dto.ItemDTO;
 import com.ctrip.framework.apollo.common.dto.NamespaceDTO;
+import com.ctrip.framework.apollo.common.dto.ReleaseDTO;
 import com.ctrip.framework.apollo.common.exception.BadRequestException;
 import com.ctrip.framework.apollo.common.utils.BeanUtils;
 import com.ctrip.framework.apollo.core.enums.ConfigFileFormat;
-import com.ctrip.framework.apollo.core.enums.Env;
+import com.ctrip.framework.apollo.portal.api.AdminServiceAPI.ItemAPI;
+import com.ctrip.framework.apollo.portal.api.AdminServiceAPI.NamespaceAPI;
+import com.ctrip.framework.apollo.portal.api.AdminServiceAPI.ReleaseAPI;
+import com.ctrip.framework.apollo.portal.environment.Env;
 import com.ctrip.framework.apollo.core.utils.StringUtils;
 import com.ctrip.framework.apollo.portal.api.AdminServiceAPI;
 import com.ctrip.framework.apollo.portal.component.txtresolver.ConfigTextResolver;
@@ -17,8 +38,9 @@ import com.ctrip.framework.apollo.portal.entity.vo.ItemDiffs;
 import com.ctrip.framework.apollo.portal.entity.vo.NamespaceIdentifier;
 import com.ctrip.framework.apollo.portal.spi.UserInfoHolder;
 import com.ctrip.framework.apollo.tracer.Tracer;
-
-import org.springframework.beans.factory.annotation.Autowired;
+import com.google.gson.Gson;
+import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -31,21 +53,29 @@ import java.util.Map;
 
 @Service
 public class ItemService {
+  private static final Gson GSON = new Gson();
 
-  @Autowired
-  private UserInfoHolder userInfoHolder;
-  @Autowired
-  private AdminServiceAPI.NamespaceAPI namespaceAPI;
-  @Autowired
-  private AdminServiceAPI.ItemAPI itemAPI;
+  private final UserInfoHolder userInfoHolder;
+  private final AdminServiceAPI.NamespaceAPI namespaceAPI;
+  private final AdminServiceAPI.ItemAPI itemAPI;
+  private final AdminServiceAPI.ReleaseAPI releaseAPI;
+  private final ConfigTextResolver fileTextResolver;
+  private final ConfigTextResolver propertyResolver;
 
-  @Autowired
-  @Qualifier("fileTextResolver")
-  private ConfigTextResolver fileTextResolver;
-
-  @Autowired
-  @Qualifier("propertyResolver")
-  private ConfigTextResolver propertyResolver;
+  public ItemService(
+      final UserInfoHolder userInfoHolder,
+      final NamespaceAPI namespaceAPI,
+      final ItemAPI itemAPI,
+      final ReleaseAPI releaseAPI,
+      final @Qualifier("fileTextResolver") ConfigTextResolver fileTextResolver,
+      final @Qualifier("propertyResolver") ConfigTextResolver propertyResolver) {
+    this.userInfoHolder = userInfoHolder;
+    this.namespaceAPI = namespaceAPI;
+    this.itemAPI = itemAPI;
+    this.releaseAPI = releaseAPI;
+    this.fileTextResolver = fileTextResolver;
+    this.propertyResolver = propertyResolver;
+  }
 
 
   /**
@@ -58,7 +88,14 @@ public class ItemService {
     Env env = model.getEnv();
     String clusterName = model.getClusterName();
     String namespaceName = model.getNamespaceName();
-    long namespaceId = model.getNamespaceId();
+
+    NamespaceDTO namespace = namespaceAPI.loadNamespace(appId, env, clusterName, namespaceName);
+    if (namespace == null) {
+      throw new BadRequestException(
+          "namespace:" + namespaceName + " not exist in env:" + env + ", cluster:" + clusterName);
+    }
+    long namespaceId = namespace.getId();
+
     String configText = model.getConfigText();
 
     ConfigTextResolver resolver =
@@ -108,8 +145,20 @@ public class ItemService {
     return itemAPI.findItems(appId, env, clusterName, namespaceName);
   }
 
+  public List<ItemDTO> findDeletedItems(String appId, Env env, String clusterName, String namespaceName) {
+    return itemAPI.findDeletedItems(appId, env, clusterName, namespaceName);
+  }
+
   public ItemDTO loadItem(Env env, String appId, String clusterName, String namespaceName, String key) {
     return itemAPI.loadItem(env, appId, clusterName, namespaceName, key);
+  }
+
+  public ItemDTO loadItemById(Env env, long itemId) {
+    ItemDTO item = itemAPI.loadItemById(env, itemId);
+    if (item == null) {
+      throw new BadRequestException("item not found for itemId " + itemId);
+    }
+    return item;
   }
 
   public void syncItems(List<NamespaceIdentifier> comparedNamespaces, List<ItemDTO> sourceItems) {
@@ -128,6 +177,55 @@ public class ItemService {
 
       Tracer.logEvent(TracerEventType.SYNC_NAMESPACE, String.format("%s+%s+%s+%s", appId, env, clusterName, namespaceName));
     }
+  }
+
+
+  public void revokeItem(String appId, Env env, String clusterName, String namespaceName) {
+
+    NamespaceDTO namespace = namespaceAPI.loadNamespace(appId, env, clusterName, namespaceName);
+    if (namespace == null) {
+      throw new BadRequestException(
+          "namespace:" + namespaceName + " not exist in env:" + env + ", cluster:" + clusterName);
+    }
+    long namespaceId = namespace.getId();
+
+    Map<String, String> releaseItemDTOs = new HashMap<>();
+    ReleaseDTO latestRelease = releaseAPI.loadLatestRelease(appId,env,clusterName,namespaceName);
+    if (latestRelease != null) {
+      releaseItemDTOs = GSON.fromJson(latestRelease.getConfigurations(), GsonType.CONFIG);
+    }
+    List<ItemDTO> baseItems = itemAPI.findItems(appId, env, clusterName, namespaceName);
+    Map<String, ItemDTO> oldKeyMapItem = BeanUtils.mapByKey("key", baseItems);
+    Map<String, ItemDTO> deletedItemDTOs = new HashMap<>();
+
+    //deleted items for comment
+    findDeletedItems(appId, env, clusterName, namespaceName).forEach(item -> {
+      deletedItemDTOs.put(item.getKey(),item);
+    });
+
+    ItemChangeSets changeSets = new ItemChangeSets();
+    AtomicInteger lineNum = new AtomicInteger(1);
+    releaseItemDTOs.forEach((key,value) -> {
+      ItemDTO oldItem = oldKeyMapItem.get(key);
+      if (oldItem == null) {
+        ItemDTO deletedItemDto = deletedItemDTOs.computeIfAbsent(key, k -> new ItemDTO());
+        changeSets.addCreateItem(buildNormalItem(0L, namespaceId,key,value,deletedItemDto.getComment(),lineNum.get()));
+      } else if (!oldItem.getValue().equals(value) || lineNum.get() != oldItem
+          .getLineNum()) {
+        changeSets.addUpdateItem(buildNormalItem(oldItem.getId(), namespaceId, key,
+            value, oldItem.getComment(), lineNum.get()));
+      }
+      oldKeyMapItem.remove(key);
+      lineNum.set(lineNum.get() + 1);
+    });
+    oldKeyMapItem.forEach((key, value) -> changeSets.addDeleteItem(oldKeyMapItem.get(key)));
+    changeSets.setDataChangeLastModifiedBy(userInfoHolder.getUser().getUserId());
+
+    updateItems(appId, env, clusterName, namespaceName, changeSets);
+
+    Tracer.logEvent(TracerEventType.MODIFY_NAMESPACE_BY_TEXT,
+        String.format("%s+%s+%s+%s", appId, env, clusterName, namespaceName));
+    Tracer.logEvent(TracerEventType.MODIFY_NAMESPACE, String.format("%s+%s+%s+%s", appId, env, clusterName, namespaceName));
   }
 
   public List<ItemDiffs> compare(List<NamespaceIdentifier> comparedNamespaces, List<ItemDTO> sourceItems) {
@@ -163,6 +261,7 @@ public class ItemService {
             "namespace not exist. appId:%s, env:%s, clusterName:%s, namespaceName:%s", appId, env, clusterName,
             namespaceName));
       }
+      throw e;
     }
     return namespaceDTO.getId();
   }
@@ -216,6 +315,13 @@ public class ItemService {
     return createdItem;
   }
 
+  private ItemDTO buildNormalItem(Long id, Long namespaceId, String key, String value, String comment, int lineNum) {
+    ItemDTO item = new ItemDTO(key, value, comment, lineNum);
+    item.setId(id);
+    item.setNamespaceId(namespaceId);
+    return item;
+  }
+
   private boolean isModified(String sourceValue, String targetValue, String sourceComment, String targetComment) {
 
     if (!sourceValue.equals(targetValue)) {
@@ -224,10 +330,10 @@ public class ItemService {
 
     if (sourceComment == null) {
       return !StringUtils.isEmpty(targetComment);
-    } else if (targetComment != null) {
-      return !sourceComment.equals(targetComment);
-    } else {
-      return false;
     }
+    if (targetComment != null) {
+      return !sourceComment.equals(targetComment);
+    }
+    return false;
   }
 }

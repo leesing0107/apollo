@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.spring;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -223,7 +239,7 @@ public class XmlConfigPlaceholderAutoUpdateTest extends AbstractSpringIntegratio
     assertEquals(DEFAULT_BATCH, bean.getBatch());
 
     Properties newApplicationProperties = assembleProperties(TIMEOUT_PROPERTY,
-        String.valueOf(initialTimeout), anotherIrrelevantKey, String.valueOf(anotherIrrelevantValue));
+        String.valueOf(initialTimeout), anotherIrrelevantKey, anotherIrrelevantValue);
 
     applicationConfig
         .onRepositoryChange(ConfigConsts.NAMESPACE_APPLICATION, newApplicationProperties);
@@ -315,7 +331,7 @@ public class XmlConfigPlaceholderAutoUpdateTest extends AbstractSpringIntegratio
 
     config.onRepositoryChange(ConfigConsts.NAMESPACE_APPLICATION, newProperties);
 
-    TimeUnit.MILLISECONDS.sleep(100);
+    TimeUnit.MILLISECONDS.sleep(300);
 
     assertEquals(newTimeout, bean.getTimeout());
     assertEquals(initialBatch, bean.getBatch());
@@ -345,7 +361,7 @@ public class XmlConfigPlaceholderAutoUpdateTest extends AbstractSpringIntegratio
 
     config.onRepositoryChange(ConfigConsts.NAMESPACE_APPLICATION, newProperties);
 
-    TimeUnit.MILLISECONDS.sleep(100);
+    TimeUnit.MILLISECONDS.sleep(300);
 
     assertEquals(newTimeout, bean.getTimeout());
     assertEquals(initialBatch, bean.getBatch());
@@ -447,8 +463,8 @@ public class XmlConfigPlaceholderAutoUpdateTest extends AbstractSpringIntegratio
     properties.setProperty("doubleProperty", String.valueOf(someDouble));
     properties.setProperty("byteProperty", String.valueOf(someByte));
     properties.setProperty("booleanProperty", String.valueOf(someBoolean));
-    properties.setProperty("stringProperty", String.valueOf(someString));
-    properties.setProperty("dateFormat", String.valueOf(someDateFormat));
+    properties.setProperty("stringProperty", someString);
+    properties.setProperty("dateFormat", someDateFormat);
     properties.setProperty("dateProperty", simpleDateFormat.format(someDate));
 
     SimpleConfig config = prepareConfig(ConfigConsts.NAMESPACE_APPLICATION, properties);
@@ -476,8 +492,8 @@ public class XmlConfigPlaceholderAutoUpdateTest extends AbstractSpringIntegratio
     newProperties.setProperty("doubleProperty", String.valueOf(someNewDouble));
     newProperties.setProperty("byteProperty", String.valueOf(someNewByte));
     newProperties.setProperty("booleanProperty", String.valueOf(someNewBoolean));
-    newProperties.setProperty("stringProperty", String.valueOf(someNewString));
-    newProperties.setProperty("dateFormat", String.valueOf(someDateFormat));
+    newProperties.setProperty("stringProperty", someNewString);
+    newProperties.setProperty("dateFormat", someDateFormat);
     newProperties.setProperty("dateProperty", simpleDateFormat.format(someNewDate));
 
     config.onRepositoryChange(ConfigConsts.NAMESPACE_APPLICATION, newProperties);

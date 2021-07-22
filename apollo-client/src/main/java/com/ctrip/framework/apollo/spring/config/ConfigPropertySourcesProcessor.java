@@ -1,15 +1,26 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.spring.config;
 
-import com.ctrip.framework.apollo.spring.annotation.SpringValueProcessor;
-import com.ctrip.framework.apollo.spring.property.SpringValueDefinitionProcessor;
-import com.ctrip.framework.apollo.spring.annotation.ApolloJsonValueProcessor;
+import com.ctrip.framework.apollo.spring.spi.ConfigPropertySourcesProcessorHelper;
+import com.ctrip.framework.foundation.internals.ServiceBootstrap;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor;
-import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
-
-import com.ctrip.framework.apollo.spring.annotation.ApolloAnnotationProcessor;
-import com.ctrip.framework.apollo.spring.util.BeanRegistrationUtil;
 
 /**
  * Apollo Property Sources processor for Spring XML Based Application
@@ -19,27 +30,10 @@ import com.ctrip.framework.apollo.spring.util.BeanRegistrationUtil;
 public class ConfigPropertySourcesProcessor extends PropertySourcesProcessor
     implements BeanDefinitionRegistryPostProcessor {
 
+  private ConfigPropertySourcesProcessorHelper helper = ServiceBootstrap.loadPrimary(ConfigPropertySourcesProcessorHelper.class);
+
   @Override
   public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) throws BeansException {
-    BeanRegistrationUtil.registerBeanDefinitionIfNotExists(registry, PropertySourcesPlaceholderConfigurer.class.getName(),
-        PropertySourcesPlaceholderConfigurer.class);
-    BeanRegistrationUtil.registerBeanDefinitionIfNotExists(registry, ApolloAnnotationProcessor.class.getName(),
-        ApolloAnnotationProcessor.class);
-    BeanRegistrationUtil.registerBeanDefinitionIfNotExists(registry, SpringValueProcessor.class.getName(), SpringValueProcessor.class);
-    BeanRegistrationUtil.registerBeanDefinitionIfNotExists(registry, ApolloJsonValueProcessor.class.getName(),
-        ApolloJsonValueProcessor.class);
-
-    processSpringValueDefinition(registry);
-  }
-
-  /**
-   * For Spring 3.x versions, the BeanDefinitionRegistryPostProcessor would not be
-   * instantiated if it is added in postProcessBeanDefinitionRegistry phase, so we have to manually
-   * call the postProcessBeanDefinitionRegistry method of SpringValueDefinitionProcessor here...
-   */
-  private void processSpringValueDefinition(BeanDefinitionRegistry registry) {
-    SpringValueDefinitionProcessor springValueDefinitionProcessor = new SpringValueDefinitionProcessor();
-
-    springValueDefinitionProcessor.postProcessBeanDefinitionRegistry(registry);
+    helper.postProcessBeanDefinitionRegistry(registry);
   }
 }

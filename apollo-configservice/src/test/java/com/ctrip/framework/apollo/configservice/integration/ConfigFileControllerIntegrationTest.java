@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.configservice.integration;
 
 import com.ctrip.framework.apollo.configservice.service.AppNamespaceServiceWithCache;
@@ -44,7 +60,7 @@ public class ConfigFileControllerIntegrationTest extends AbstractBaseIntegration
   private String someDefaultCluster;
   private String grayClientIp;
   private String nonGrayClientIp;
-  private Gson gson = new Gson();
+  private static final Gson GSON = new Gson();
   private ExecutorService executorService;
   private Type mapResponseType = new TypeToken<Map<String, String>>(){}.getType();
 
@@ -63,7 +79,7 @@ public class ConfigFileControllerIntegrationTest extends AbstractBaseIntegration
     someDC = "someDC";
     grayClientIp = "1.1.1.1";
     nonGrayClientIp = "2.2.2.2";
-    executorService = Executors.newSingleThreadExecutor();
+    executorService = Executors.newFixedThreadPool(1);
   }
 
   @Test
@@ -72,7 +88,7 @@ public class ConfigFileControllerIntegrationTest extends AbstractBaseIntegration
   public void testQueryConfigAsProperties() throws Exception {
     ResponseEntity<String> response =
         restTemplate
-            .getForEntity("{baseurl}/configfiles/{appId}/{clusterName}/{namespace}", String.class,
+            .getForEntity("http://{baseurl}/configfiles/{appId}/{clusterName}/{namespace}", String.class,
                 getHostUrl(), someAppId, someCluster, someNamespace);
 
     String result = response.getBody();
@@ -96,12 +112,12 @@ public class ConfigFileControllerIntegrationTest extends AbstractBaseIntegration
 
     ResponseEntity<String> response =
         restTemplate
-            .getForEntity("{baseurl}/configfiles/{appId}/{clusterName}/{namespace}?ip={clientIp}", String.class,
+            .getForEntity("http://{baseurl}/configfiles/{appId}/{clusterName}/{namespace}?ip={clientIp}", String.class,
                 getHostUrl(), someAppId, someDefaultCluster, ConfigConsts.NAMESPACE_APPLICATION, grayClientIp);
 
     ResponseEntity<String> anotherResponse =
         restTemplate
-            .getForEntity("{baseurl}/configfiles/{appId}/{clusterName}/{namespace}?ip={clientIp}", String.class,
+            .getForEntity("http://{baseurl}/configfiles/{appId}/{clusterName}/{namespace}?ip={clientIp}", String.class,
                 getHostUrl(), someAppId, someDefaultCluster, ConfigConsts.NAMESPACE_APPLICATION, nonGrayClientIp);
 
     String result = response.getBody();
@@ -123,7 +139,7 @@ public class ConfigFileControllerIntegrationTest extends AbstractBaseIntegration
     ResponseEntity<String> response =
         restTemplate
             .getForEntity(
-                "{baseurl}/configfiles/{appId}/{clusterName}/{namespace}?dataCenter={dateCenter}",
+                "http://{baseurl}/configfiles/{appId}/{clusterName}/{namespace}?dataCenter={dateCenter}",
                 String.class,
                 getHostUrl(), someAppId, someDefaultCluster, somePublicNamespace, someDC);
 
@@ -140,10 +156,10 @@ public class ConfigFileControllerIntegrationTest extends AbstractBaseIntegration
   public void testQueryConfigAsJson() throws Exception {
     ResponseEntity<String> response =
         restTemplate
-            .getForEntity("{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}", String.class,
+            .getForEntity("http://{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}", String.class,
                 getHostUrl(), someAppId, someCluster, someNamespace);
 
-    Map<String, String> configs = gson.fromJson(response.getBody(), mapResponseType);
+    Map<String, String> configs = GSON.fromJson(response.getBody(), mapResponseType);
 
     assertEquals(HttpStatus.OK, response.getStatusCode());
     assertEquals("v2", configs.get("k2"));
@@ -155,10 +171,10 @@ public class ConfigFileControllerIntegrationTest extends AbstractBaseIntegration
   public void testQueryConfigAsJsonWithIncorrectCase() throws Exception {
     ResponseEntity<String> response =
         restTemplate
-            .getForEntity("{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}", String.class,
+            .getForEntity("http://{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}", String.class,
                 getHostUrl(), someAppId, someCluster, someNamespace.toUpperCase());
 
-    Map<String, String> configs = gson.fromJson(response.getBody(), mapResponseType);
+    Map<String, String> configs = GSON.fromJson(response.getBody(), mapResponseType);
 
     assertEquals(HttpStatus.OK, response.getStatusCode());
     assertEquals("v2", configs.get("k2"));
@@ -172,11 +188,11 @@ public class ConfigFileControllerIntegrationTest extends AbstractBaseIntegration
     ResponseEntity<String> response =
         restTemplate
             .getForEntity(
-                "{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}?dataCenter={dateCenter}",
+                "http://{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}?dataCenter={dateCenter}",
                 String.class,
                 getHostUrl(), someAppId, someDefaultCluster, somePublicNamespace, someDC);
 
-    Map<String, String> configs = gson.fromJson(response.getBody(), mapResponseType);
+    Map<String, String> configs = GSON.fromJson(response.getBody(), mapResponseType);
 
     assertEquals(HttpStatus.OK, response.getStatusCode());
     assertEquals("override-someDC-v1", configs.get("k1"));
@@ -191,11 +207,11 @@ public class ConfigFileControllerIntegrationTest extends AbstractBaseIntegration
     ResponseEntity<String> response =
         restTemplate
             .getForEntity(
-                "{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}?dataCenter={dateCenter}",
+                "http://{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}?dataCenter={dateCenter}",
                 String.class,
                 getHostUrl(), someAppId, someDefaultCluster, somePublicNamespace.toUpperCase(), someDC);
 
-    Map<String, String> configs = gson.fromJson(response.getBody(), mapResponseType);
+    Map<String, String> configs = GSON.fromJson(response.getBody(), mapResponseType);
 
     assertEquals(HttpStatus.OK, response.getStatusCode());
     assertEquals("override-someDC-v1", configs.get("k1"));
@@ -219,19 +235,19 @@ public class ConfigFileControllerIntegrationTest extends AbstractBaseIntegration
     ResponseEntity<String> response =
         restTemplate
             .getForEntity(
-                "{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}?ip={clientIp}",
+                "http://{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}?ip={clientIp}",
                 String.class,
                 getHostUrl(), someAppId, someDefaultCluster, somePublicNamespace, grayClientIp);
 
     ResponseEntity<String> anotherResponse =
         restTemplate
             .getForEntity(
-                "{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}?ip={clientIp}",
+                "http://{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}?ip={clientIp}",
                 String.class,
                 getHostUrl(), someAppId, someDefaultCluster, somePublicNamespace, nonGrayClientIp);
 
-    Map<String, String> configs = gson.fromJson(response.getBody(), mapResponseType);
-    Map<String, String> anotherConfigs = gson.fromJson(anotherResponse.getBody(), mapResponseType);
+    Map<String, String> configs = GSON.fromJson(response.getBody(), mapResponseType);
+    Map<String, String> anotherConfigs = GSON.fromJson(anotherResponse.getBody(), mapResponseType);
 
     assertEquals(HttpStatus.OK, response.getStatusCode());
     assertEquals(HttpStatus.OK, anotherResponse.getStatusCode());
@@ -260,19 +276,19 @@ public class ConfigFileControllerIntegrationTest extends AbstractBaseIntegration
     ResponseEntity<String> response =
         restTemplate
             .getForEntity(
-                "{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}?ip={clientIp}",
+                "http://{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}?ip={clientIp}",
                 String.class,
                 getHostUrl(), someAppId, someDefaultCluster, somePublicNamespace.toUpperCase(), grayClientIp);
 
     ResponseEntity<String> anotherResponse =
         restTemplate
             .getForEntity(
-                "{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}?ip={clientIp}",
+                "http://{baseurl}/configfiles/json/{appId}/{clusterName}/{namespace}?ip={clientIp}",
                 String.class,
                 getHostUrl(), someAppId, someDefaultCluster, somePublicNamespace.toUpperCase(), nonGrayClientIp);
 
-    Map<String, String> configs = gson.fromJson(response.getBody(), mapResponseType);
-    Map<String, String> anotherConfigs = gson.fromJson(anotherResponse.getBody(), mapResponseType);
+    Map<String, String> configs = GSON.fromJson(response.getBody(), mapResponseType);
+    Map<String, String> anotherConfigs = GSON.fromJson(anotherResponse.getBody(), mapResponseType);
 
     assertEquals(HttpStatus.OK, response.getStatusCode());
     assertEquals(HttpStatus.OK, anotherResponse.getStatusCode());
@@ -290,7 +306,7 @@ public class ConfigFileControllerIntegrationTest extends AbstractBaseIntegration
   public void testConfigChanged() throws Exception {
     ResponseEntity<String> response =
         restTemplate
-            .getForEntity("{baseurl}/configfiles/{appId}/{clusterName}/{namespace}", String.class,
+            .getForEntity("http://{baseurl}/configfiles/{appId}/{clusterName}/{namespace}", String.class,
                 getHostUrl(), someAppId, someCluster, someNamespace);
 
     String result = response.getBody();
@@ -312,7 +328,7 @@ public class ConfigFileControllerIntegrationTest extends AbstractBaseIntegration
 
     ResponseEntity<String> anotherResponse =
         restTemplate
-            .getForEntity("{baseurl}/configfiles/{appId}/{clusterName}/{namespace}", String.class,
+            .getForEntity("http://{baseurl}/configfiles/{appId}/{clusterName}/{namespace}", String.class,
                 getHostUrl(), someAppId, someCluster, someNamespace);
 
     assertEquals(response.getBody(), anotherResponse.getBody());
@@ -325,7 +341,7 @@ public class ConfigFileControllerIntegrationTest extends AbstractBaseIntegration
 
     ResponseEntity<String> newResponse =
         restTemplate
-            .getForEntity("{baseurl}/configfiles/{appId}/{clusterName}/{namespace}", String.class,
+            .getForEntity("http://{baseurl}/configfiles/{appId}/{clusterName}/{namespace}", String.class,
                 getHostUrl(), someAppId, someCluster, someNamespace);
 
     result = newResponse.getBody();

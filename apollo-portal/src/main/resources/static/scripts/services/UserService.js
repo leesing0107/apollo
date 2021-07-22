@@ -1,16 +1,32 @@
-appService.service('UserService', ['$resource', '$q', function ($resource, $q) {
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+appService.service('UserService', ['$resource', '$q', 'AppUtil', function ($resource, $q, AppUtil) {
     var user_resource = $resource('', {}, {
         load_user: {
             method: 'GET',
-            url: '/user'
+            url: AppUtil.prefixPath() + '/user'
         },
         find_users: {
             method: 'GET',
-            url: '/users'
+            url: AppUtil.prefixPath() + '/users'
         },
         create_or_update_user: {
             method: 'POST',
-            url: '/users'
+            url: AppUtil.prefixPath() + '/users'
         }
     });
     return {

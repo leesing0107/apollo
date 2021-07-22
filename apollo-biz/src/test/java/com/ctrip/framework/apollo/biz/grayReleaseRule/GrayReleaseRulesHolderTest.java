@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.biz.grayReleaseRule;
 
 import com.google.common.base.Joiner;
@@ -18,7 +34,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -43,7 +59,7 @@ public class GrayReleaseRulesHolderTest {
   private BizConfig bizConfig;
   @Mock
   private GrayReleaseRuleRepository grayReleaseRuleRepository;
-  private Gson gson = new Gson();
+  private static final Gson GSON = new Gson();
   private AtomicLong idCounter;
 
   @Before
@@ -84,6 +100,8 @@ public class GrayReleaseRulesHolderTest {
 
     assertEquals(someReleaseId, grayReleaseRulesHolder.findReleaseIdFromGrayReleaseRule
         (someClientAppId, someClientIp, someAppId, someClusterName, someNamespaceName));
+    assertEquals(someReleaseId, grayReleaseRulesHolder.findReleaseIdFromGrayReleaseRule
+        (someClientAppId.toUpperCase(), someClientIp, someAppId.toUpperCase(), someClusterName, someNamespaceName.toUpperCase()));
     assertNull(grayReleaseRulesHolder.findReleaseIdFromGrayReleaseRule(someClientAppId,
         anotherClientIp, someAppId, someClusterName, someNamespaceName));
 
@@ -94,6 +112,8 @@ public class GrayReleaseRulesHolderTest {
 
     assertTrue(grayReleaseRulesHolder.hasGrayReleaseRule(someClientAppId, someClientIp,
         someNamespaceName));
+    assertTrue(grayReleaseRulesHolder.hasGrayReleaseRule(someClientAppId.toUpperCase(), someClientIp,
+        someNamespaceName.toUpperCase()));
     assertFalse(grayReleaseRulesHolder.hasGrayReleaseRule(someClientAppId, anotherClientIp,
         someNamespaceName));
     assertFalse(grayReleaseRulesHolder.hasGrayReleaseRule(someClientAppId, someClientIp,
@@ -141,7 +161,7 @@ public class GrayReleaseRulesHolderTest {
     rule.setClusterName(clusterName);
     rule.setNamespaceName(namespaceName);
     rule.setBranchName("someBranch");
-    rule.setRules(gson.toJson(ruleItems));
+    rule.setRules(GSON.toJson(ruleItems));
     rule.setReleaseId(releaseId);
     rule.setBranchStatus(branchStatus);
 

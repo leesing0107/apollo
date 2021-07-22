@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.portal.component.emailbuilder;
 
 
@@ -8,7 +24,7 @@ import com.ctrip.framework.apollo.common.constants.ReleaseOperationContext;
 import com.ctrip.framework.apollo.common.dto.ReleaseDTO;
 import com.ctrip.framework.apollo.common.entity.AppNamespace;
 import com.ctrip.framework.apollo.core.enums.ConfigFileFormat;
-import com.ctrip.framework.apollo.core.enums.Env;
+import com.ctrip.framework.apollo.portal.environment.Env;
 import com.ctrip.framework.apollo.portal.component.config.PortalConfig;
 import com.ctrip.framework.apollo.portal.constant.RoleType;
 import com.ctrip.framework.apollo.portal.entity.bo.Email;
@@ -104,7 +120,7 @@ public abstract class ConfigPublishEmailBuilder {
 
     email.setSubject(subject());
     email.setSenderEmailAddress(portalConfig.emailSender());
-    email.setRecipients(recipients(releaseHistory.getAppId(), releaseHistory.getNamespaceName()));
+    email.setRecipients(recipients(releaseHistory.getAppId(), releaseHistory.getNamespaceName(), env.toString()));
 
     String emailBody = emailContent(env, releaseHistory);
     //clear not used module
@@ -144,7 +160,7 @@ public abstract class ConfigPublishEmailBuilder {
             renderResult.replaceAll(EMAIL_CONTENT_FIELD_RELEASE_ID, String.valueOf(releaseHistory.getReleaseId()));
     renderResult =
             renderResult.replaceAll(EMAIL_CONTENT_FIELD_RELEASE_HISTORY_ID, String.valueOf(releaseHistory.getId()));
-    renderResult = renderResult.replaceAll(EMAIL_CONTENT_FIELD_RELEASE_COMMENT, Matcher.quoteReplacement(releaseHistory.getReleaseComment()));
+    renderResult = renderResult.replaceAll(EMAIL_CONTENT_FIELD_RELEASE_COMMENT, Matcher.quoteReplacement(releaseHistory.getReleaseComment() == null ? "" : releaseHistory.getReleaseComment()));
     renderResult = renderResult.replaceAll(EMAIL_CONTENT_FIELD_APOLLO_SERVER_ADDRESS, getApolloPortalAddress());
     return renderResult
             .replaceAll(EMAIL_CONTENT_FIELD_RELEASE_TIME, dateFormat.format(releaseHistory.getReleaseTime()));
@@ -208,13 +224,19 @@ public abstract class ConfigPublishEmailBuilder {
     return releaseService.compare(env, releaseHistory.getPreviousReleaseId(), releaseHistory.getReleaseId());
   }
 
-  private List<String> recipients(String appId, String namespaceName) {
+  private List<String> recipients(String appId, String namespaceName, String env) {
     Set<UserInfo> modifyRoleUsers =
             rolePermissionService
                     .queryUsersWithRole(RoleUtils.buildNamespaceRoleName(appId, namespaceName, RoleType.MODIFY_NAMESPACE));
+    Set<UserInfo> envModifyRoleUsers =
+        rolePermissionService
+            .queryUsersWithRole(RoleUtils.buildNamespaceRoleName(appId, namespaceName, RoleType.MODIFY_NAMESPACE, env));
     Set<UserInfo> releaseRoleUsers =
             rolePermissionService
                     .queryUsersWithRole(RoleUtils.buildNamespaceRoleName(appId, namespaceName, RoleType.RELEASE_NAMESPACE));
+    Set<UserInfo> envReleaseRoleUsers =
+        rolePermissionService
+            .queryUsersWithRole(RoleUtils.buildNamespaceRoleName(appId, namespaceName, RoleType.RELEASE_NAMESPACE, env));
     Set<UserInfo> owners = rolePermissionService.queryUsersWithRole(RoleUtils.buildAppMasterRoleName(appId));
 
     Set<String> userIds = new HashSet<>(modifyRoleUsers.size() + releaseRoleUsers.size() + owners.size());
@@ -223,7 +245,15 @@ public abstract class ConfigPublishEmailBuilder {
       userIds.add(userInfo.getUserId());
     }
 
+    for (UserInfo userInfo : envModifyRoleUsers) {
+      userIds.add(userInfo.getUserId());
+    }
+
     for (UserInfo userInfo : releaseRoleUsers) {
+      userIds.add(userInfo.getUserId());
+    }
+
+    for (UserInfo userInfo : envReleaseRoleUsers) {
       userIds.add(userInfo.getUserId());
     }
 

@@ -1,5 +1,25 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.internals;
 
+import com.ctrip.framework.apollo.build.ApolloInjector;
+import com.ctrip.framework.apollo.core.utils.DeferredLoggerFactory;
+import com.ctrip.framework.apollo.enums.ConfigSourceType;
+import com.ctrip.framework.apollo.util.factory.PropertiesFactory;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
@@ -7,7 +27,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.ctrip.framework.apollo.ConfigFile;
 import com.ctrip.framework.apollo.ConfigFileChangeListener;
@@ -23,12 +42,15 @@ import com.google.common.collect.Lists;
  * @author Jason Song(song_s@ctrip.com)
  */
 public abstract class AbstractConfigFile implements ConfigFile, RepositoryChangeListener {
-  private static final Logger logger = LoggerFactory.getLogger(AbstractConfigFile.class);
+  private static final Logger logger = DeferredLoggerFactory.getLogger(AbstractConfigFile.class);
   private static ExecutorService m_executorService;
-  protected ConfigRepository m_configRepository;
-  protected String m_namespace;
-  protected AtomicReference<Properties> m_configProperties;
-  private List<ConfigFileChangeListener> m_listeners = Lists.newCopyOnWriteArrayList();
+  protected final ConfigRepository m_configRepository;
+  protected final String m_namespace;
+  protected final AtomicReference<Properties> m_configProperties;
+  private final List<ConfigFileChangeListener> m_listeners = Lists.newCopyOnWriteArrayList();
+  protected final PropertiesFactory propertiesFactory;
+
+  private volatile ConfigSourceType m_sourceType = ConfigSourceType.NONE;
 
   static {
     m_executorService = Executors.newCachedThreadPool(ApolloThreadFactory
@@ -39,12 +61,14 @@ public abstract class AbstractConfigFile implements ConfigFile, RepositoryChange
     m_configRepository = configRepository;
     m_namespace = namespace;
     m_configProperties = new AtomicReference<>();
+    propertiesFactory = ApolloInjector.getInstance(PropertiesFactory.class);
     initialize();
   }
 
   private void initialize() {
     try {
       m_configProperties.set(m_configRepository.getConfig());
+      m_sourceType = m_configRepository.getSourceType();
     } catch (Throwable ex) {
       Tracer.logError(ex);
       logger.warn("Init Apollo Config File failed - namespace: {}, reason: {}.",
@@ -68,12 +92,13 @@ public abstract class AbstractConfigFile implements ConfigFile, RepositoryChange
     if (newProperties.equals(m_configProperties.get())) {
       return;
     }
-    Properties newConfigProperties = new Properties();
+    Properties newConfigProperties = propertiesFactory.getPropertiesInstance();
     newConfigProperties.putAll(newProperties);
 
     String oldValue = getContent();
 
     update(newProperties);
+    m_sourceType = m_configRepository.getSourceType();
 
     String newValue = getContent();
 
@@ -95,6 +120,16 @@ public abstract class AbstractConfigFile implements ConfigFile, RepositoryChange
     if (!m_listeners.contains(listener)) {
       m_listeners.add(listener);
     }
+  }
+
+  @Override
+  public boolean removeChangeListener(ConfigFileChangeListener listener) {
+    return m_listeners.remove(listener);
+  }
+
+  @Override
+  public ConfigSourceType getSourceType() {
+    return m_sourceType;
   }
 
   private void fireConfigChange(final ConfigFileChangeEvent changeEvent) {

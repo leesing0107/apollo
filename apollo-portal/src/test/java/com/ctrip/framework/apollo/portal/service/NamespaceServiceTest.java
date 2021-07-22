@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.portal.service;
 
 import com.ctrip.framework.apollo.common.dto.ItemDTO;
@@ -6,7 +22,7 @@ import com.ctrip.framework.apollo.common.dto.ReleaseDTO;
 import com.ctrip.framework.apollo.common.entity.AppNamespace;
 import com.ctrip.framework.apollo.common.exception.BadRequestException;
 import com.ctrip.framework.apollo.core.enums.ConfigFileFormat;
-import com.ctrip.framework.apollo.core.enums.Env;
+import com.ctrip.framework.apollo.portal.environment.Env;
 import com.ctrip.framework.apollo.portal.AbstractUnitTest;
 import com.ctrip.framework.apollo.portal.api.AdminServiceAPI;
 import com.ctrip.framework.apollo.portal.component.txtresolver.PropertyResolver;
@@ -47,6 +63,8 @@ public class NamespaceServiceTest extends AbstractUnitTest {
   private NamespaceBranchService branchService;
   @Mock
   private UserInfoHolder userInfoHolder;
+  @Mock
+  private AdditionalUserInfoEnrichService additionalUserInfoEnrichService;
 
   @InjectMocks
   private NamespaceService namespaceService;
@@ -111,13 +129,18 @@ public class NamespaceServiceTest extends AbstractUnitTest {
 
   }
 
-  @Test(expected = BadRequestException.class)
+  @Test
   public void testDeletePrivateNamespace() {
+    String operator = "user";
     AppNamespace privateNamespace = createAppNamespace(testAppId, testNamespaceName, false);
 
     when(appNamespaceService.findByAppIdAndName(testAppId, testNamespaceName)).thenReturn(privateNamespace);
 
+    when(userInfoHolder.getUser()).thenReturn(createUser(operator));
+
     namespaceService.deleteNamespace(testAppId, testEnv, testClusterName, testNamespaceName);
+
+    verify(namespaceAPI, times(1)).deleteNamespace(testEnv, testAppId, testClusterName, testNamespaceName, operator);
   }
 
   @Test(expected = BadRequestException.class)

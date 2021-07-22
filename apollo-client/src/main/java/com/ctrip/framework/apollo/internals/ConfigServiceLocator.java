@@ -1,5 +1,26 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.internals;
 
+import com.ctrip.framework.apollo.core.ApolloClientSystemConsts;
+import com.ctrip.framework.apollo.core.ServiceNameConsts;
+import com.ctrip.framework.apollo.core.utils.DeferredLoggerFactory;
+import com.ctrip.framework.apollo.core.utils.DeprecatedPropertyNotifyUtil;
+import com.ctrip.framework.foundation.Foundation;
 import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +41,7 @@ import com.ctrip.framework.apollo.util.ConfigUtil;
 import com.ctrip.framework.apollo.util.ExceptionUtil;
 import com.ctrip.framework.apollo.util.http.HttpRequest;
 import com.ctrip.framework.apollo.util.http.HttpResponse;
-import com.ctrip.framework.apollo.util.http.HttpUtil;
+import com.ctrip.framework.apollo.util.http.HttpClient;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
@@ -30,8 +51,8 @@ import com.google.common.net.UrlEscapers;
 import com.google.gson.reflect.TypeToken;
 
 public class ConfigServiceLocator {
-  private static final Logger logger = LoggerFactory.getLogger(ConfigServiceLocator.class);
-  private HttpUtil m_httpUtil;
+  private static final Logger logger = DeferredLoggerFactory.getLogger(ConfigServiceLocator.class);
+  private HttpClient m_httpClient;
   private ConfigUtil m_configUtil;
   private AtomicReference<List<ServiceDTO>> m_configServices;
   private Type m_responseType;
@@ -47,12 +68,90 @@ public class ConfigServiceLocator {
     m_configServices = new AtomicReference<>(initial);
     m_responseType = new TypeToken<List<ServiceDTO>>() {
     }.getType();
-    m_httpUtil = ApolloInjector.getInstance(HttpUtil.class);
+    m_httpClient = ApolloInjector.getInstance(HttpClient.class);
     m_configUtil = ApolloInjector.getInstance(ConfigUtil.class);
     this.m_executorService = Executors.newScheduledThreadPool(1,
         ApolloThreadFactory.create("ConfigServiceLocator", true));
+    initConfigServices();
+  }
+
+  private void initConfigServices() {
+    // get from run time configurations
+    List<ServiceDTO> customizedConfigServices = getCustomizedConfigService();
+
+    if (customizedConfigServices != null) {
+      setConfigServices(customizedConfigServices);
+      return;
+    }
+
+    // update from meta service
     this.tryUpdateConfigServices();
     this.schedulePeriodicRefresh();
+  }
+
+  private List<ServiceDTO> getCustomizedConfigService() {
+    // 1. Get from System Property
+    String configServices = System.getProperty(ApolloClientSystemConsts.APOLLO_CONFIG_SERVICE);
+    if (Strings.isNullOrEmpty(configServices)) {
+      // 2. Get from OS environment variable
+      configServices = System.getenv(ApolloClientSystemConsts.APOLLO_CONFIG_SERVICE_ENVIRONMENT_VARIABLES);
+    }
+    if (Strings.isNullOrEmpty(configServices)) {
+      // 3. Get from server.properties
+      configServices = Foundation.server().getProperty(ApolloClientSystemConsts.APOLLO_CONFIG_SERVICE, null);
+    }
+    if (Strings.isNullOrEmpty(configServices)) {
+      // 4. Get from deprecated config
+      configServices = getDeprecatedCustomizedConfigService();
+    }
+
+    if (Strings.isNullOrEmpty(configServices)) {
+      return null;
+    }
+
+    logger.warn("Located config services from apollo.config-service configuration: {}, will not refresh config services from remote meta service!", configServices);
+
+    // mock service dto list
+    String[] configServiceUrls = configServices.split(",");
+    List<ServiceDTO> serviceDTOS = Lists.newArrayList();
+
+    for (String configServiceUrl : configServiceUrls) {
+      configServiceUrl = configServiceUrl.trim();
+      ServiceDTO serviceDTO = new ServiceDTO();
+      serviceDTO.setHomepageUrl(configServiceUrl);
+      serviceDTO.setAppName(ServiceNameConsts.APOLLO_CONFIGSERVICE);
+      serviceDTO.setInstanceId(configServiceUrl);
+      serviceDTOS.add(serviceDTO);
+    }
+
+    return serviceDTOS;
+  }
+
+  @SuppressWarnings("deprecation")
+  private String getDeprecatedCustomizedConfigService() {
+    // 1. Get from System Property
+    String configServices = System.getProperty(ApolloClientSystemConsts.DEPRECATED_APOLLO_CONFIG_SERVICE);
+    if (!Strings.isNullOrEmpty(configServices)) {
+      DeprecatedPropertyNotifyUtil.warn(ApolloClientSystemConsts.DEPRECATED_APOLLO_CONFIG_SERVICE,
+          ApolloClientSystemConsts.APOLLO_CONFIG_SERVICE);
+    }
+    if (Strings.isNullOrEmpty(configServices)) {
+      // 2. Get from OS environment variable
+      configServices = System.getenv(ApolloClientSystemConsts.DEPRECATED_APOLLO_CONFIG_SERVICE_ENVIRONMENT_VARIABLES);
+      if (!Strings.isNullOrEmpty(configServices)) {
+        DeprecatedPropertyNotifyUtil.warn(ApolloClientSystemConsts.DEPRECATED_APOLLO_CONFIG_SERVICE_ENVIRONMENT_VARIABLES,
+            ApolloClientSystemConsts.APOLLO_CONFIG_SERVICE_ENVIRONMENT_VARIABLES);
+      }
+    }
+    if (Strings.isNullOrEmpty(configServices)) {
+      // 3. Get from server.properties
+      configServices = Foundation.server().getProperty(ApolloClientSystemConsts.DEPRECATED_APOLLO_CONFIG_SERVICE, null);
+      if (!Strings.isNullOrEmpty(configServices)) {
+        DeprecatedPropertyNotifyUtil.warn(ApolloClientSystemConsts.DEPRECATED_APOLLO_CONFIG_SERVICE,
+            ApolloClientSystemConsts.APOLLO_CONFIG_SERVICE);
+      }
+    }
+    return configServices;
   }
 
   /**
@@ -102,15 +201,14 @@ public class ConfigServiceLocator {
       Transaction transaction = Tracer.newTransaction("Apollo.MetaService", "getConfigService");
       transaction.addData("Url", url);
       try {
-        HttpResponse<List<ServiceDTO>> response = m_httpUtil.doGet(request, m_responseType);
+        HttpResponse<List<ServiceDTO>> response = m_httpClient.doGet(request, m_responseType);
         transaction.setStatus(Transaction.SUCCESS);
         List<ServiceDTO> services = response.getBody();
         if (services == null || services.isEmpty()) {
           logConfigService("Empty response!");
           continue;
         }
-        m_configServices.set(services);
-        logConfigServices(services);
+        setConfigServices(services);
         return;
       } catch (Throwable ex) {
         Tracer.logEvent("ApolloConfigException", ExceptionUtil.getDetailMessage(ex));
@@ -129,6 +227,11 @@ public class ConfigServiceLocator {
 
     throw new ApolloConfigException(
         String.format("Get config services failed from %s", url), exception);
+  }
+
+  private void setConfigServices(List<ServiceDTO> services) {
+    m_configServices.set(services);
+    logConfigServices(services);
   }
 
   private String assembleMetaServiceUrl() {

@@ -1,6 +1,20 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.biz.service;
-
-import com.google.common.base.Strings;
 
 import com.ctrip.framework.apollo.biz.entity.Audit;
 import com.ctrip.framework.apollo.biz.entity.Cluster;
@@ -9,8 +23,8 @@ import com.ctrip.framework.apollo.common.exception.BadRequestException;
 import com.ctrip.framework.apollo.common.exception.ServiceException;
 import com.ctrip.framework.apollo.common.utils.BeanUtils;
 import com.ctrip.framework.apollo.core.ConfigConsts;
-
-import org.springframework.beans.factory.annotation.Autowired;
+import com.google.common.base.Strings;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,12 +35,18 @@ import java.util.Objects;
 @Service
 public class ClusterService {
 
-  @Autowired
-  private ClusterRepository clusterRepository;
-  @Autowired
-  private AuditService auditService;
-  @Autowired
-  private NamespaceService namespaceService;
+  private final ClusterRepository clusterRepository;
+  private final AuditService auditService;
+  private final NamespaceService namespaceService;
+
+  public ClusterService(
+      final ClusterRepository clusterRepository,
+      final AuditService auditService,
+      final @Lazy NamespaceService namespaceService) {
+    this.clusterRepository = clusterRepository;
+    this.auditService = auditService;
+    this.namespaceService = namespaceService;
+  }
 
 
   public boolean isClusterNameUnique(String appId, String clusterName) {
@@ -40,7 +60,7 @@ public class ClusterService {
   }
 
   public Cluster findOne(long clusterId) {
-    return clusterRepository.findOne(clusterId);
+    return clusterRepository.findById(clusterId).orElse(null);
   }
 
   public List<Cluster> findParentClusters(String appId) {
@@ -85,7 +105,7 @@ public class ClusterService {
 
   @Transactional
   public void delete(long id, String operator) {
-    Cluster cluster = clusterRepository.findOne(id);
+    Cluster cluster = clusterRepository.findById(id).orElse(null);
     if (cluster == null) {
       throw new BadRequestException("cluster not exist");
     }
@@ -137,4 +157,16 @@ public class ClusterService {
     return clusterRepository.findByParentClusterId(parentCluster.getId());
   }
 
+  public List<Cluster> findClusters(String appId) {
+    List<Cluster> clusters = clusterRepository.findByAppId(appId);
+
+    if (clusters == null) {
+      return Collections.emptyList();
+    }
+
+    // to make sure parent cluster is ahead of branch cluster
+    Collections.sort(clusters);
+
+    return clusters;
+  }
 }

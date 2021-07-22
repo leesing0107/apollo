@@ -1,5 +1,41 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
 package com.ctrip.framework.foundation.internals.provider;
 
+import com.ctrip.framework.apollo.core.utils.DeferredLoggerFactory;
+import com.google.common.base.Strings;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -12,24 +48,52 @@ import com.ctrip.framework.foundation.internals.io.BOMInputStream;
 import com.ctrip.framework.foundation.spi.provider.Provider;
 import com.ctrip.framework.foundation.spi.provider.ServerProvider;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class DefaultServerProvider implements ServerProvider {
-  private static final Logger logger = LoggerFactory.getLogger(DefaultServerProvider.class);
-  private static final String SERVER_PROPERTIES_LINUX = "/opt/settings/server.properties";
-  private static final String SERVER_PROPERTIES_WINDOWS = "C:/opt/settings/server.properties";
 
+  private static final Logger logger = DeferredLoggerFactory.getLogger(DefaultServerProvider.class);
+
+  static final String DEFAULT_SERVER_PROPERTIES_PATH_ON_LINUX = "/opt/settings/server.properties";
+  static final String DEFAULT_SERVER_PROPERTIES_PATH_ON_WINDOWS = "C:/opt/settings/server.properties";
   private String m_env;
   private String m_dc;
 
-  private Properties m_serverProperties = new Properties();
+  private final Properties m_serverProperties = new Properties();
+
+  String getServerPropertiesPath() {
+    final String serverPropertiesPath = getCustomizedServerPropertiesPath();
+
+    if (!Strings.isNullOrEmpty(serverPropertiesPath)) {
+      return serverPropertiesPath;
+    }
+
+    return Utils.isOSWindows() ? DEFAULT_SERVER_PROPERTIES_PATH_ON_WINDOWS
+        : DEFAULT_SERVER_PROPERTIES_PATH_ON_LINUX;
+  }
+
+  private String getCustomizedServerPropertiesPath() {
+    // 1. Get from System Property
+    final String serverPropertiesPathFromSystemProperty = System
+        .getProperty("apollo.path.server.properties");
+    if (!Strings.isNullOrEmpty(serverPropertiesPathFromSystemProperty)) {
+      return serverPropertiesPathFromSystemProperty;
+    }
+
+    // 2. Get from OS environment variable
+    final String serverPropertiesPathFromEnvironment = System
+        .getenv("APOLLO_PATH_SERVER_PROPERTIES");
+    if (!Strings.isNullOrEmpty(serverPropertiesPathFromEnvironment)) {
+      return serverPropertiesPathFromEnvironment;
+    }
+
+    // last, return null if there is no custom value
+    return null;
+  }
 
   @Override
   public void initialize() {
     try {
-      String path = Utils.isOSWindows() ? SERVER_PROPERTIES_WINDOWS : SERVER_PROPERTIES_LINUX;
-
-      File file = new File(path);
+      File file = new File(this.getServerPropertiesPath());
       if (file.exists() && file.canRead()) {
         logger.info("Loading {}", file.getAbsolutePath());
         FileInputStream fis = new FileInputStream(file);
@@ -37,7 +101,6 @@ public class DefaultServerProvider implements ServerProvider {
         return;
       }
 
-      logger.warn("{} does not exist or is not readable.", path);
       initialize(null);
     } catch (Throwable ex) {
       logger.error("Initialize DefaultServerProvider failed.", ex);
@@ -49,7 +112,8 @@ public class DefaultServerProvider implements ServerProvider {
     try {
       if (in != null) {
         try {
-          m_serverProperties.load(new InputStreamReader(new BOMInputStream(in), StandardCharsets.UTF_8));
+          m_serverProperties
+              .load(new InputStreamReader(new BOMInputStream(in), StandardCharsets.UTF_8));
         } finally {
           in.close();
         }
@@ -87,13 +151,13 @@ public class DefaultServerProvider implements ServerProvider {
     if ("env".equalsIgnoreCase(name)) {
       String val = getEnvType();
       return val == null ? defaultValue : val;
-    } else if ("dc".equalsIgnoreCase(name)) {
+    }
+    if ("dc".equalsIgnoreCase(name)) {
       String val = getDataCenter();
       return val == null ? defaultValue : val;
-    } else {
-      String val = m_serverProperties.getProperty(name, defaultValue);
-      return val == null ? defaultValue : val.trim();
     }
+    String val = m_serverProperties.getProperty(name, defaultValue);
+    return val == null ? defaultValue : val.trim();
   }
 
   @Override
@@ -128,7 +192,8 @@ public class DefaultServerProvider implements ServerProvider {
 
     // 4. Set environment to null.
     m_env = null;
-    logger.warn("Environment is set to null. Because it is not available in either (1) JVM system property 'env', (2) OS env variable 'ENV' nor (3) property 'env' from the properties InputStream.");
+    logger.info(
+        "Environment is set to null. Because it is not available in either (1) JVM system property 'env', (2) OS env variable 'ENV' nor (3) property 'env' from the properties InputStream.");
   }
 
   private void initDataCenter() {
@@ -158,12 +223,14 @@ public class DefaultServerProvider implements ServerProvider {
 
     // 4. Set Data Center to null.
     m_dc = null;
-    logger.debug("Data Center is set to null. Because it is not available in either (1) JVM system property 'idc', (2) OS env variable 'IDC' nor (3) property 'idc' from the properties InputStream.");
+    logger.debug(
+        "Data Center is set to null. Because it is not available in either (1) JVM system property 'idc', (2) OS env variable 'IDC' nor (3) property 'idc' from the properties InputStream.");
   }
 
   @Override
   public String toString() {
-    return "environment [" + getEnvType() + "] data center [" + getDataCenter() + "] properties: " + m_serverProperties
+    return "environment [" + getEnvType() + "] data center [" + getDataCenter() + "] properties: "
+        + m_serverProperties
         + " (DefaultServerProvider)";
   }
 }

@@ -1,10 +1,20 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.openapi.service;
-
-import com.google.common.base.Charsets;
-import com.google.common.base.Joiner;
-import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
-import com.google.common.hash.Hashing;
 
 import com.ctrip.framework.apollo.common.exception.BadRequestException;
 import com.ctrip.framework.apollo.openapi.entity.Consumer;
@@ -18,13 +28,20 @@ import com.ctrip.framework.apollo.openapi.repository.ConsumerTokenRepository;
 import com.ctrip.framework.apollo.portal.component.config.PortalConfig;
 import com.ctrip.framework.apollo.portal.entity.bo.UserInfo;
 import com.ctrip.framework.apollo.portal.entity.po.Role;
+import com.ctrip.framework.apollo.portal.repository.RoleRepository;
 import com.ctrip.framework.apollo.portal.service.RolePermissionService;
 import com.ctrip.framework.apollo.portal.spi.UserInfoHolder;
 import com.ctrip.framework.apollo.portal.spi.UserService;
 import com.ctrip.framework.apollo.portal.util.RoleUtils;
-
+import com.google.common.base.Charsets;
+import com.google.common.base.Joiner;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import com.google.common.hash.Hashing;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.commons.lang.time.FastDateFormat;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,22 +58,36 @@ public class ConsumerService {
   private static final FastDateFormat TIMESTAMP_FORMAT = FastDateFormat.getInstance("yyyyMMddHHmmss");
   private static final Joiner KEY_JOINER = Joiner.on("|");
 
-  @Autowired
-  private UserInfoHolder userInfoHolder;
-  @Autowired
-  private ConsumerTokenRepository consumerTokenRepository;
-  @Autowired
-  private ConsumerRepository consumerRepository;
-  @Autowired
-  private ConsumerAuditRepository consumerAuditRepository;
-  @Autowired
-  private ConsumerRoleRepository consumerRoleRepository;
-  @Autowired
-  private PortalConfig portalConfig;
-  @Autowired
-  private RolePermissionService rolePermissionService;
-  @Autowired
-  private UserService userService;
+  private final UserInfoHolder userInfoHolder;
+  private final ConsumerTokenRepository consumerTokenRepository;
+  private final ConsumerRepository consumerRepository;
+  private final ConsumerAuditRepository consumerAuditRepository;
+  private final ConsumerRoleRepository consumerRoleRepository;
+  private final PortalConfig portalConfig;
+  private final RolePermissionService rolePermissionService;
+  private final UserService userService;
+  private final RoleRepository roleRepository;
+
+  public ConsumerService(
+      final UserInfoHolder userInfoHolder,
+      final ConsumerTokenRepository consumerTokenRepository,
+      final ConsumerRepository consumerRepository,
+      final ConsumerAuditRepository consumerAuditRepository,
+      final ConsumerRoleRepository consumerRoleRepository,
+      final PortalConfig portalConfig,
+      final RolePermissionService rolePermissionService,
+      final UserService userService,
+      final RoleRepository roleRepository) {
+    this.userInfoHolder = userInfoHolder;
+    this.consumerTokenRepository = consumerTokenRepository;
+    this.consumerRepository = consumerRepository;
+    this.consumerAuditRepository = consumerAuditRepository;
+    this.consumerRoleRepository = consumerRoleRepository;
+    this.portalConfig = portalConfig;
+    this.rolePermissionService = rolePermissionService;
+    this.userService = userService;
+    this.roleRepository = roleRepository;
+  }
 
 
   public Consumer createConsumer(Consumer consumer) {
@@ -109,20 +140,24 @@ public class ConsumerService {
   }
 
   public Consumer getConsumerByConsumerId(long consumerId) {
-    return consumerRepository.findOne(consumerId);
+    return consumerRepository.findById(consumerId).orElse(null);
+  }
+
+  public List<ConsumerRole> assignNamespaceRoleToConsumer(String token, String appId, String namespaceName) {
+    return assignNamespaceRoleToConsumer(token, appId, namespaceName, null);
   }
 
   @Transactional
-  public List<ConsumerRole> assignNamespaceRoleToConsumer(String token, String appId, String namespaceName) {
+  public List<ConsumerRole> assignNamespaceRoleToConsumer(String token, String appId, String namespaceName, String env) {
     Long consumerId = getConsumerIdByToken(token);
     if (consumerId == null) {
       throw new BadRequestException("Token is Illegal");
     }
 
     Role namespaceModifyRole =
-        rolePermissionService.findRoleByRoleName(RoleUtils.buildModifyNamespaceRoleName(appId, namespaceName));
+        rolePermissionService.findRoleByRoleName(RoleUtils.buildModifyNamespaceRoleName(appId, namespaceName, env));
     Role namespaceReleaseRole =
-        rolePermissionService.findRoleByRoleName(RoleUtils.buildReleaseNamespaceRoleName(appId, namespaceName));
+        rolePermissionService.findRoleByRoleName(RoleUtils.buildReleaseNamespaceRoleName(appId, namespaceName, env));
 
     if (namespaceModifyRole == null || namespaceReleaseRole == null) {
       throw new BadRequestException("Namespace's role does not exist. Please check whether namespace has created.");
@@ -173,7 +208,7 @@ public class ConsumerService {
 
   @Transactional
   public void createConsumerAudits(Iterable<ConsumerAudit> consumerAudits) {
-    consumerAuditRepository.save(consumerAudits);
+    consumerAuditRepository.saveAll(consumerAudits);
   }
 
   @Transactional
@@ -229,4 +264,33 @@ public class ConsumerService {
     return consumerRole;
   }
 
+  public Set<String> findAppIdsAuthorizedByConsumerId(long consumerId) {
+    List<ConsumerRole> consumerRoles = this.findConsumerRolesByConsumerId(consumerId);
+    List<Long> roleIds = consumerRoles.stream().map(ConsumerRole::getRoleId)
+        .collect(Collectors.toList());
+
+    Set<String> appIds = this.findAppIdsByRoleIds(roleIds);
+    return appIds;
+  }
+
+  private List<ConsumerRole> findConsumerRolesByConsumerId(long consumerId) {
+    List<ConsumerRole> consumerRoles = this.consumerRoleRepository.findByConsumerId(consumerId);
+    return consumerRoles;
+  }
+
+  private Set<String> findAppIdsByRoleIds(List<Long> roleIds) {
+    Iterable<Role> roleIterable = this.roleRepository.findAllById(roleIds);
+
+    Set<String> appIds = new HashSet<>();
+
+    roleIterable.forEach(role -> {
+      if (!role.isDeleted()) {
+        String roleName = role.getRoleName();
+        String appId = RoleUtils.extractAppIdFromRoleName(roleName);
+        appIds.add(appId);
+      }
+    });
+
+    return appIds;
+  }
 }

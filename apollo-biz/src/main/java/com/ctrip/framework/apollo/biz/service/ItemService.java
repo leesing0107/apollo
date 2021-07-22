@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.biz.service;
 
 
@@ -10,8 +26,7 @@ import com.ctrip.framework.apollo.common.exception.BadRequestException;
 import com.ctrip.framework.apollo.common.exception.NotFoundException;
 import com.ctrip.framework.apollo.common.utils.BeanUtils;
 import com.ctrip.framework.apollo.core.utils.StringUtils;
-
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,22 +38,26 @@ import java.util.Map;
 @Service
 public class ItemService {
 
-  @Autowired
-  private ItemRepository itemRepository;
+  private final ItemRepository itemRepository;
+  private final NamespaceService namespaceService;
+  private final AuditService auditService;
+  private final BizConfig bizConfig;
 
-  @Autowired
-  private NamespaceService namespaceService;
-
-  @Autowired
-  private AuditService auditService;
-
-  @Autowired
-  private BizConfig bizConfig;
+  public ItemService(
+      final ItemRepository itemRepository,
+      final @Lazy NamespaceService namespaceService,
+      final AuditService auditService,
+      final BizConfig bizConfig) {
+    this.itemRepository = itemRepository;
+    this.namespaceService = namespaceService;
+    this.auditService = auditService;
+    this.bizConfig = bizConfig;
+  }
 
 
   @Transactional
   public Item delete(long id, String operator) {
-    Item item = itemRepository.findOne(id);
+    Item item = itemRepository.findById(id).orElse(null);
     if (item == null) {
       throw new IllegalArgumentException("item not exist. ID:" + id);
     }
@@ -63,8 +82,7 @@ public class ItemService {
       throw new NotFoundException(
           String.format("namespace not found for %s %s %s", appId, clusterName, namespaceName));
     }
-    Item item = itemRepository.findByNamespaceIdAndKey(namespace.getId(), key);
-    return item;
+    return itemRepository.findByNamespaceIdAndKey(namespace.getId(), key);
   }
 
   public Item findLastOne(String appId, String clusterName, String namespaceName) {
@@ -81,8 +99,7 @@ public class ItemService {
   }
 
   public Item findOne(long itemId) {
-    Item item = itemRepository.findOne(itemId);
-    return item;
+    return itemRepository.findById(itemId).orElse(null);
   }
 
   public List<Item> findItemsWithoutOrdered(Long namespaceId) {
@@ -97,9 +114,8 @@ public class ItemService {
     Namespace namespace = namespaceService.findOne(appId, clusterName, namespaceName);
     if (namespace != null) {
       return findItemsWithoutOrdered(namespace.getId());
-    } else {
-      return Collections.emptyList();
     }
+    return Collections.emptyList();
   }
 
   public List<Item> findItemsWithOrdered(Long namespaceId) {
@@ -114,9 +130,8 @@ public class ItemService {
     Namespace namespace = namespaceService.findOne(appId, clusterName, namespaceName);
     if (namespace != null) {
       return findItemsWithOrdered(namespace.getId());
-    } else {
-      return Collections.emptyList();
     }
+    return Collections.emptyList();
   }
 
   public List<Item> findItemsModifiedAfterDate(long namespaceId, Date date) {
@@ -147,7 +162,7 @@ public class ItemService {
   @Transactional
   public Item update(Item item) {
     checkItemValueLength(item.getNamespaceId(), item.getValue());
-    Item managedItem = itemRepository.findOne(item.getId());
+    Item managedItem = itemRepository.findById(item.getId()).orElse(null);
     BeanUtils.copyEntityProperties(item, managedItem);
     managedItem = itemRepository.save(managedItem);
 

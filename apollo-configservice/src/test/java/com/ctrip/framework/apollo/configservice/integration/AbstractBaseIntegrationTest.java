@@ -1,5 +1,22 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.configservice.integration;
 
+import com.ctrip.framework.apollo.biz.service.BizDBPropertySource;
 import com.google.gson.Gson;
 
 import com.ctrip.framework.apollo.ConfigServiceTestConfiguration;
@@ -14,9 +31,10 @@ import com.ctrip.framework.apollo.biz.utils.ReleaseKeyGenerator;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.SpringApplicationConfiguration;
-import org.springframework.boot.test.TestRestTemplate;
-import org.springframework.boot.test.WebIntegrationTest;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -24,6 +42,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.web.client.DefaultResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Duration;
 import java.util.Date;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -36,17 +55,17 @@ import javax.annotation.PostConstruct;
  * @author Jason Song(song_s@ctrip.com)
  */
 @RunWith(SpringJUnit4ClassRunner.class)
-@SpringApplicationConfiguration(classes = AbstractBaseIntegrationTest.TestConfiguration.class)
-@WebIntegrationTest(randomPort = true)
+@SpringBootTest(classes = AbstractBaseIntegrationTest.TestConfiguration.class, webEnvironment = WebEnvironment.RANDOM_PORT)
 public abstract class AbstractBaseIntegrationTest {
   @Autowired
   private ReleaseMessageRepository releaseMessageRepository;
   @Autowired
   private ReleaseRepository releaseRepository;
 
-  private Gson gson = new Gson();
+  private static final Gson GSON = new Gson();
 
-  RestTemplate restTemplate = new TestRestTemplate();
+  protected RestTemplate restTemplate = (new TestRestTemplate(new RestTemplateBuilder()
+      .setConnectTimeout(Duration.ofSeconds(5)))).getRestTemplate();
 
   @PostConstruct
   private void postConstruct() {
@@ -57,15 +76,15 @@ public abstract class AbstractBaseIntegrationTest {
   int port;
 
   protected String getHostUrl() {
-    return "http://localhost:" + port;
+    return "localhost:" + port;
   }
 
   @Configuration
   @Import(ConfigServiceTestConfiguration.class)
   protected static class TestConfiguration {
     @Bean
-    public BizConfig bizConfig() {
-      return new TestBizConfig();
+    public BizConfig bizConfig(final BizDBPropertySource bizDBPropertySource) {
+      return new TestBizConfig(bizDBPropertySource);
     }
   }
 
@@ -86,14 +105,14 @@ public abstract class AbstractBaseIntegrationTest {
     release.setAppId(namespace.getAppId());
     release.setClusterName(namespace.getClusterName());
     release.setNamespaceName(namespace.getNamespaceName());
-    release.setConfigurations(gson.toJson(configurations));
+    release.setConfigurations(GSON.toJson(configurations));
     release = releaseRepository.save(release);
 
     return release;
   }
 
   protected void periodicSendMessage(ExecutorService executorService, String message, AtomicBoolean stop) {
-    executorService.submit((Runnable) () -> {
+    executorService.submit(() -> {
       //wait for the request connected to server
       while (!stop.get() && !Thread.currentThread().isInterrupted()) {
         try {
@@ -112,6 +131,10 @@ public abstract class AbstractBaseIntegrationTest {
   }
 
   private static class TestBizConfig extends BizConfig {
+    public TestBizConfig(final BizDBPropertySource propertySource) {
+      super(propertySource);
+    }
+
     @Override
     public int appNamespaceCacheScanInterval() {
       //should be short enough to update the AppNamespace cache in time

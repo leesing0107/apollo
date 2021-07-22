@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.foundation.internals;
 
 import java.net.Inet4Address;
@@ -7,9 +23,9 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.Objects;
 
 public enum NetworkInterfaceManager {
   INSTANCE;
@@ -18,7 +34,7 @@ public enum NetworkInterfaceManager {
 
   private InetAddress m_localHost;
 
-  private NetworkInterfaceManager() {
+  NetworkInterfaceManager() {
     load();
   }
 
@@ -41,11 +57,16 @@ public enum NetworkInterfaceManager {
           weight += 2;
         }
 
+        /**
+         * The following logic is removed as we will sort the network interfaces according to the index asc to determine
+         * the priorities between network interfaces, see https://github.com/ctripcorp/apollo/pull/1986
+         */
         // has host name
-        // TODO fix performance issue when calling getHostName
+        /*
         if (!Objects.equals(address.getHostName(), address.getHostAddress())) {
           weight += 1;
         }
+        */
 
         if (weight > maxWeight) {
           maxWeight = weight;
@@ -98,8 +119,16 @@ public enum NetworkInterfaceManager {
 
     try {
       Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
-      List<NetworkInterface> nis = interfaces == null ? Collections.<NetworkInterface>emptyList() : Collections.list(interfaces);
-      List<InetAddress> addresses = new ArrayList<InetAddress>();
+      List<NetworkInterface> nis = interfaces == null ? Collections.<NetworkInterface>emptyList()
+          : Collections.list(interfaces);
+      //sort the network interfaces according to the index asc
+      Collections.sort(nis, new Comparator<NetworkInterface>() {
+        @Override
+        public int compare(NetworkInterface nis1, NetworkInterface nis2) {
+          return Integer.compare(nis1.getIndex(), nis2.getIndex());
+        }
+      });
+      List<InetAddress> addresses = new ArrayList<>();
       InetAddress local = null;
 
       try {

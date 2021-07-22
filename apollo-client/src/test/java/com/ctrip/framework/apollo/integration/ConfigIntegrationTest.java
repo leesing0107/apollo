@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.integration;
 
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -5,13 +21,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+import com.ctrip.framework.apollo.util.OrderedProperties;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -48,6 +63,7 @@ import com.google.common.util.concurrent.SettableFuture;
  * @author Jason Song(song_s@ctrip.com)
  */
 public class ConfigIntegrationTest extends BaseIntegrationTest {
+
   private String someReleaseKey;
   private File configDir;
   private String defaultNamespace;
@@ -111,6 +127,30 @@ public class ConfigIntegrationTest extends BaseIntegrationTest {
   }
 
   @Test
+  public void testOrderGetConfigWithNoLocalFileButWithRemoteConfig() throws Exception {
+    setPropertiesOrderEnabled(true);
+
+    String someKey1 = "someKey1";
+    String someValue1 = "someValue1";
+    String someKey2 = "someKey2";
+    String someValue2 = "someValue2";
+    Map<String, String> configurations = new LinkedHashMap<>();
+    configurations.put(someKey1, someValue1);
+    configurations.put(someKey2, someValue2);
+    ApolloConfig apolloConfig = assembleApolloConfig(ImmutableMap.copyOf(configurations));
+    ContextHandler handler = mockConfigServerHandler(HttpServletResponse.SC_OK, apolloConfig);
+    startServerWithHandlers(handler);
+
+    Config config = ConfigService.getAppConfig();
+
+    Set<String> propertyNames = config.getPropertyNames();
+    Iterator<String> it = propertyNames.iterator();
+    assertEquals(someKey1, it.next());
+    assertEquals(someKey2, it.next());
+
+  }
+
+  @Test
   public void testGetConfigWithLocalFileAndWithRemoteConfig() throws Exception {
     String someKey = "someKey";
     String someValue = "someValue";
@@ -126,6 +166,47 @@ public class ConfigIntegrationTest extends BaseIntegrationTest {
     Config config = ConfigService.getAppConfig();
 
     assertEquals(anotherValue, config.getProperty(someKey, null));
+  }
+
+  @Test
+  public void testOrderGetConfigWithLocalFileAndWithRemoteConfig() throws Exception {
+    String someKey = "someKey";
+    String someValue = "someValue";
+    String anotherValue = "anotherValue";
+
+    String someKey1 = "someKey1";
+    String someValue1 = "someValue1";
+    String anotherValue1 = "anotherValue1";
+    String someKey2 = "someKey2";
+    String someValue2 = "someValue2";
+
+    setPropertiesOrderEnabled(true);
+
+    Properties properties = new OrderedProperties();
+    properties.put(someKey, someValue);
+    properties.put(someKey1, someValue1);
+    properties.put(someKey2, someValue2);
+    createLocalCachePropertyFile(properties);
+
+    Map<String, String> configurations = new LinkedHashMap<>();
+    configurations.put(someKey, anotherValue);
+    configurations.put(someKey1, anotherValue1);
+    configurations.put(someKey2, someValue2);
+    ApolloConfig apolloConfig = assembleApolloConfig(ImmutableMap.copyOf(configurations));
+    ContextHandler handler = mockConfigServerHandler(HttpServletResponse.SC_OK, apolloConfig);
+    startServerWithHandlers(handler);
+
+    Config config = ConfigService.getAppConfig();
+
+    assertEquals(anotherValue, config.getProperty(someKey, null));
+
+    Set<String> propertyNames = config.getPropertyNames();
+    Iterator<String> it = propertyNames.iterator();
+    assertEquals(someKey, it.next());
+    assertEquals(someKey1, it.next());
+    assertEquals(someKey2, it.next());
+    assertEquals(anotherValue1, config.getProperty(someKey1, ""));
+
   }
 
   @Test
@@ -156,6 +237,34 @@ public class ConfigIntegrationTest extends BaseIntegrationTest {
 
     Config config = ConfigService.getAppConfig();
     assertEquals(someValue, config.getProperty(someKey, null));
+  }
+
+  @Test
+  public void testOrderGetConfigWithLocalFileAndRemoteConfigError() throws Exception {
+    String someKey1 = "someKey1";
+    String someValue1 = "someValue1";
+    String someKey2 = "someKey2";
+    String someValue2 = "someValue2";
+
+    setPropertiesOrderEnabled(true);
+
+    Properties properties = new OrderedProperties();
+    properties.put(someKey1, someValue1);
+    properties.put(someKey2, someValue2);
+    createLocalCachePropertyFile(properties);
+
+    ContextHandler handler =
+        mockConfigServerHandler(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, null);
+    startServerWithHandlers(handler);
+
+    Config config = ConfigService.getAppConfig();
+    assertEquals(someValue1, config.getProperty(someKey1, null));
+    assertEquals(someValue2, config.getProperty(someKey2, null));
+
+    Set<String> propertyNames = config.getPropertyNames();
+    Iterator<String> it = propertyNames.iterator();
+    assertEquals(someKey1, it.next());
+    assertEquals(someKey2, it.next());
   }
 
   @Test
@@ -279,7 +388,8 @@ public class ConfigIntegrationTest extends BaseIntegrationTest {
   }
 
   @Test
-  public void testLongPollRefreshWithMultipleNamespacesAndOnlyOneNamespaceNotified() throws Exception {
+  public void testLongPollRefreshWithMultipleNamespacesAndOnlyOneNamespaceNotified()
+      throws Exception {
     final String someKey = "someKey";
     final String someValue = "someValue";
     final String anotherValue = "anotherValue";
@@ -323,7 +433,8 @@ public class ConfigIntegrationTest extends BaseIntegrationTest {
   }
 
   @Test
-  public void testLongPollRefreshWithMultipleNamespacesAndMultipleNamespaceNotified() throws Exception {
+  public void testLongPollRefreshWithMultipleNamespacesAndMultipleNamespaceNotified()
+      throws Exception {
     final String someKey = "someKey";
     final String someValue = "someValue";
     final String anotherValue = "anotherValue";
@@ -375,16 +486,16 @@ public class ConfigIntegrationTest extends BaseIntegrationTest {
   }
 
   private ContextHandler mockPollNotificationHandler(final long pollResultTimeOutInMS,
-                                                     final int statusCode,
-                                                     final List<ApolloConfigNotification> result,
-                                                     final boolean failedAtFirstTime) {
+      final int statusCode,
+      final List<ApolloConfigNotification> result,
+      final boolean failedAtFirstTime) {
     ContextHandler context = new ContextHandler("/notifications/v2");
     context.setHandler(new AbstractHandler() {
       AtomicInteger counter = new AtomicInteger(0);
 
       @Override
       public void handle(String target, Request baseRequest, HttpServletRequest request,
-                         HttpServletResponse response) throws IOException, ServletException {
+          HttpServletResponse response) throws IOException, ServletException {
         if (failedAtFirstTime && counter.incrementAndGet() == 1) {
           response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
           baseRequest.setHandled(true);
@@ -407,14 +518,14 @@ public class ConfigIntegrationTest extends BaseIntegrationTest {
   }
 
   private ContextHandler mockConfigServerHandler(final int statusCode, final ApolloConfig result,
-                                                 final boolean failedAtFirstTime) {
+      final boolean failedAtFirstTime) {
     ContextHandler context = new ContextHandler("/configs/*");
     context.setHandler(new AbstractHandler() {
       AtomicInteger counter = new AtomicInteger(0);
 
       @Override
       public void handle(String target, Request baseRequest, HttpServletRequest request,
-                         HttpServletResponse response) throws IOException, ServletException {
+          HttpServletResponse response) throws IOException, ServletException {
         if (failedAtFirstTime && counter.incrementAndGet() == 1) {
           response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
           baseRequest.setHandled(true);
@@ -446,14 +557,8 @@ public class ConfigIntegrationTest extends BaseIntegrationTest {
 
   private File createLocalCachePropertyFile(Properties properties) throws IOException {
     File file = new File(configDir, assembleLocalCacheFileName());
-    FileOutputStream in = null;
-    try {
-      in = new FileOutputStream(file);
+    try (FileOutputStream in = new FileOutputStream(file)) {
       properties.store(in, "Persisted by ConfigIntegrationTest");
-    } finally {
-      if (in != null) {
-        in.close();
-      }
     }
     return file;
   }

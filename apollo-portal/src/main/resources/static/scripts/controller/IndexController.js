@@ -1,8 +1,24 @@
-index_module.controller('IndexController', ['$scope', '$window', 'toastr', 'AppUtil', 'AppService',
-                                            'UserService', 'FavoriteService',
-                                            IndexController]);
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+index_module.controller('IndexController', ['$scope', '$window', '$translate', 'toastr', 'AppUtil', 'AppService',
+    'UserService', 'FavoriteService',
+    IndexController]);
 
-function IndexController($scope, $window, toastr, AppUtil, AppService, UserService, FavoriteService) {
+function IndexController($scope, $window, $translate, toastr, AppUtil, AppService, UserService, FavoriteService) {
 
     $scope.userId = '';
 
@@ -15,6 +31,17 @@ function IndexController($scope, $window, toastr, AppUtil, AppService, UserServi
     $scope.toTop = toTop;
     $scope.deleteFavorite = deleteFavorite;
 
+    function initCreateApplicationPermission() {
+        AppService.has_create_application_role($scope.userId).then(
+            function (value) {
+                $scope.hasCreateApplicationPermission = value.hasCreateApplicationPermission;
+            },
+            function (reason) {
+                toastr.warning(AppUtil.errorMsg(reason), $translate.instant('Index.GetCreateAppRoleFailed'));
+            }
+        )
+    }
+
     UserService.load_user().then(function (result) {
         $scope.userId = result.userId;
 
@@ -25,6 +52,8 @@ function IndexController($scope, $window, toastr, AppUtil, AppService, UserServi
         $scope.favorites = [];
         $scope.hasMoreFavorites = true;
         $scope.visitedApps = [];
+
+        initCreateApplicationPermission();
 
         getUserCreatedApps();
 
@@ -57,7 +86,7 @@ function IndexController($scope, $window, toastr, AppUtil, AppService, UserServi
                 $scope.favoritesPage += 1;
                 $scope.hasMoreFavorites = result.length == size;
 
-                if ($scope.favoritesPage == 1){
+                if ($scope.favoritesPage == 1) {
                     $("#app-list").removeClass("hidden");
                 }
 
@@ -79,7 +108,7 @@ function IndexController($scope, $window, toastr, AppUtil, AppService, UserServi
                         });
                         result.forEach(function (favorite) {
                             var app = appIdMapApp[favorite.appId];
-                            if (!app){
+                            if (!app) {
                                 return;
                             }
                             app.favoriteId = favorite.id;
@@ -109,7 +138,7 @@ function IndexController($scope, $window, toastr, AppUtil, AppService, UserServi
 
                     userVisitedApps.forEach(function (appId) {
                         var app = appIdMapApp[appId];
-                        if (app){
+                        if (app) {
                             $scope.visitedApps.push(app);
                         }
                     });
@@ -119,11 +148,11 @@ function IndexController($scope, $window, toastr, AppUtil, AppService, UserServi
     }
 
     function goToCreateAppPage() {
-        $window.location.href = "/app.html";
+        $window.location.href = AppUtil.prefixPath() + "/app.html";
     }
 
     function goToAppHomePage(appId) {
-        $window.location.href = "/config.html?#/appid=" + appId;
+        $window.location.href = AppUtil.prefixPath() + "/config.html?#/appid=" + appId;
     }
 
     function toggleOperationBtn(app) {
@@ -132,7 +161,7 @@ function IndexController($scope, $window, toastr, AppUtil, AppService, UserServi
 
     function toTop(favoriteId) {
         FavoriteService.toTop(favoriteId).then(function () {
-            toastr.success("置顶成功");
+            toastr.success($translate.instant('Index.Topped'));
             refreshFavorites();
 
         })
@@ -140,7 +169,7 @@ function IndexController($scope, $window, toastr, AppUtil, AppService, UserServi
 
     function deleteFavorite(favoriteId) {
         FavoriteService.deleteFavorite(favoriteId).then(function () {
-            toastr.success("取消收藏成功");
+            toastr.success($translate.instant('Index.CancelledFavorite'));
             refreshFavorites();
         })
     }

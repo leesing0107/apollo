@@ -1,31 +1,29 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 $(document).ready(function () {
 
-    // nicescroll
-    $("html").niceScroll({
-                             styler: "fb",
-                             cursorcolor: "#e8403f",
-                             cursorwidth: '6',
-                             cursorborderradius: '10px',
-                             background: '#404040',
-                             spacebarenabled: false,
-                             cursorborder: '',
-                             zindex: '1000'
-                         });
 
     // bootstrap tooltip & textarea scroll
     setInterval(function () {
         $('[data-tooltip="tooltip"]').tooltip({
                                                   trigger : 'hover'
                                               });
-        $("textarea").niceScroll({cursoropacitymax: 0});
-        $("pre").niceScroll({cursoropacitymax: 0});
     }, 1000);
 
-    setTimeout(function () {
-
-        $(".release-history-list").niceScroll({cursoropacitymax: 0});
-
-    }, 2500);
 });
 
 // (new Date()).Format("yyyy-MM-dd hh:mm:ss.S") ==> 2006-07-02 08:09:04.423

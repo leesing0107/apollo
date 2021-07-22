@@ -1,20 +1,32 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.adminservice.controller;
-
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 
 import com.ctrip.framework.apollo.biz.entity.ReleaseHistory;
 import com.ctrip.framework.apollo.biz.service.ReleaseHistoryService;
 import com.ctrip.framework.apollo.common.dto.PageDTO;
 import com.ctrip.framework.apollo.common.dto.ReleaseHistoryDTO;
 import com.ctrip.framework.apollo.common.utils.BeanUtils;
-
-import org.springframework.beans.factory.annotation.Autowired;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -29,15 +41,18 @@ import java.util.Map;
 @RestController
 public class ReleaseHistoryController {
 
-  private Gson gson = new Gson();
+  private static final Gson GSON = new Gson();
+
   private Type configurationTypeReference = new TypeToken<Map<String, Object>>() {
   }.getType();
 
-  @Autowired
-  private ReleaseHistoryService releaseHistoryService;
+  private final ReleaseHistoryService releaseHistoryService;
 
-  @RequestMapping(value = "/apps/{appId}/clusters/{clusterName}/namespaces/{namespaceName}/releases/histories",
-      method = RequestMethod.GET)
+  public ReleaseHistoryController(final ReleaseHistoryService releaseHistoryService) {
+    this.releaseHistoryService = releaseHistoryService;
+  }
+
+  @GetMapping("/apps/{appId}/clusters/{clusterName}/namespaces/{namespaceName}/releases/histories")
   public PageDTO<ReleaseHistoryDTO> findReleaseHistoriesByNamespace(
       @PathVariable String appId, @PathVariable String clusterName,
       @PathVariable String namespaceName,
@@ -49,7 +64,7 @@ public class ReleaseHistoryController {
   }
 
 
-  @RequestMapping(value = "/releases/histories/by_release_id_and_operation", method = RequestMethod.GET)
+  @GetMapping("/releases/histories/by_release_id_and_operation")
   public PageDTO<ReleaseHistoryDTO> findReleaseHistoryByReleaseIdAndOperation(
       @RequestParam("releaseId") long releaseId,
       @RequestParam("operation") int operation,
@@ -60,7 +75,7 @@ public class ReleaseHistoryController {
     return transform2PageDTO(result, pageable);
   }
 
-  @RequestMapping(value = "/releases/histories/by_previous_release_id_and_operation", method = RequestMethod.GET)
+  @GetMapping("/releases/histories/by_previous_release_id_and_operation")
   public PageDTO<ReleaseHistoryDTO> findReleaseHistoryByPreviousReleaseIdAndOperation(
       @RequestParam("previousReleaseId") long previousReleaseId,
       @RequestParam("operation") int operation,
@@ -89,7 +104,7 @@ public class ReleaseHistoryController {
   private ReleaseHistoryDTO transformReleaseHistory2DTO(ReleaseHistory releaseHistory) {
     ReleaseHistoryDTO dto = new ReleaseHistoryDTO();
     BeanUtils.copyProperties(releaseHistory, dto, "operationContext");
-    dto.setOperationContext(gson.fromJson(releaseHistory.getOperationContext(),
+    dto.setOperationContext(GSON.fromJson(releaseHistory.getOperationContext(),
                                           configurationTypeReference));
 
     return dto;

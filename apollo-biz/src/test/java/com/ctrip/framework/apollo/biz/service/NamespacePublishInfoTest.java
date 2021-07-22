@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.biz.service;
 
 import com.ctrip.framework.apollo.biz.AbstractUnitTest;
@@ -17,8 +33,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Random;
 
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
 public class NamespacePublishInfoTest extends AbstractUnitTest {
@@ -65,7 +81,7 @@ public class NamespacePublishInfoTest extends AbstractUnitTest {
     when(namespaceRepository.findByAppIdAndClusterNameOrderByIdAsc(testApp, ConfigConsts.CLUSTER_NAME_DEFAULT))
         .thenReturn(Collections.singletonList(namespace));
     when(releaseService.findLatestActiveRelease(namespace)).thenReturn(release);
-    when(itemService.findItemsModifiedAfterDate(anyLong(), anyObject())).thenReturn(Collections.singletonList(item));
+    when(itemService.findItemsModifiedAfterDate(anyLong(), any())).thenReturn(Collections.singletonList(item));
 
     Map<String, Boolean> result = namespaceService.namespacePublishInfo(testApp);
 
@@ -85,7 +101,7 @@ public class NamespacePublishInfoTest extends AbstractUnitTest {
     when(namespaceRepository.findByAppIdAndClusterNameOrderByIdAsc(testApp, ConfigConsts.CLUSTER_NAME_DEFAULT))
         .thenReturn(Collections.singletonList(namespace));
     when(releaseService.findLatestActiveRelease(namespace)).thenReturn(release);
-    when(itemService.findItemsModifiedAfterDate(anyLong(), anyObject())).thenReturn(Collections.singletonList(item));
+    when(itemService.findItemsModifiedAfterDate(anyLong(), any())).thenReturn(Collections.singletonList(item));
 
     Map<String, Boolean> result = namespaceService.namespacePublishInfo(testApp);
 

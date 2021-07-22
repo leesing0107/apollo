@@ -1,7 +1,23 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.configservice.service.config;
 
 import static org.junit.Assert.*;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -17,7 +33,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
@@ -83,8 +99,6 @@ public class DefaultConfigServiceTest {
     when(grayReleaseRulesHolder.findReleaseIdFromGrayReleaseRule(someClientAppId, someClientIp,
         someConfigAppId, someClusterName, defaultNamespaceName)).thenReturn(grayReleaseId);
     when(releaseService.findActiveOne(grayReleaseId)).thenReturn(grayRelease);
-    when(releaseService.findLatestActiveRelease(someConfigAppId, someClusterName, defaultNamespaceName))
-        .thenReturn(someRelease);
 
     Release release = configService
         .loadConfig(someClientAppId, someClientIp, someConfigAppId, someClusterName, defaultNamespaceName, someDataCenter,

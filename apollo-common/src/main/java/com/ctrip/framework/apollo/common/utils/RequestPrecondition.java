@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.common.utils;
 
 
@@ -10,9 +26,6 @@ public class RequestPrecondition {
   private static String CONTAIN_EMPTY_ARGUMENT = "request payload should not be contain empty.";
 
   private static String ILLEGAL_MODEL = "request model is invalid";
-
-  private static String ILLEGAL_NUMBER = "number should be positive";
-
 
   public static void checkArgumentsNotEmpty(String... args) {
     checkArguments(!StringUtils.isContainEmpty(args), CONTAIN_EMPTY_ARGUMENT);
@@ -27,31 +40,4 @@ public class RequestPrecondition {
       throw new BadRequestException(String.valueOf(errorMessage));
     }
   }
-
-  public static void checkNumberPositive(int... args){
-    for (int num: args){
-      if (num <= 0){
-        throw new BadRequestException(ILLEGAL_NUMBER);
-      }
-    }
-  }
-
-  public static void checkNumberPositive(long... args){
-    for (long num: args){
-      if (num <= 0){
-        throw new BadRequestException(ILLEGAL_NUMBER);
-      }
-    }
-  }
-
-  public static void checkNumberNotNegative(int... args){
-    for (int num: args){
-      if (num < 0){
-        throw new BadRequestException(ILLEGAL_NUMBER);
-      }
-    }
-  }
-
-
-
 }

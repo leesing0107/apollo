@@ -1,10 +1,28 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.spring.property;
 
 import com.ctrip.framework.apollo.spring.util.SpringInjector;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.MutablePropertyValues;
 import org.springframework.beans.PropertyValue;
@@ -30,9 +48,9 @@ import com.google.common.collect.Multimap;
  * </pre>
  */
 public class SpringValueDefinitionProcessor implements BeanDefinitionRegistryPostProcessor {
-  private static final Multimap<String, SpringValueDefinition> beanName2SpringValueDefinitions =
-      LinkedListMultimap.create();
-  private static final AtomicBoolean initialized = new AtomicBoolean(false);
+  private static final Map<BeanDefinitionRegistry, Multimap<String, SpringValueDefinition>> beanName2SpringValueDefinitions =
+      Maps.newConcurrentMap();
+  private static final Set<BeanDefinitionRegistry> PROPERTY_VALUES_PROCESSED_BEAN_FACTORIES = Sets.newConcurrentHashSet();
 
   private final ConfigUtil configUtil;
   private final PlaceholderHelper placeholderHelper;
@@ -54,15 +72,26 @@ public class SpringValueDefinitionProcessor implements BeanDefinitionRegistryPos
 
   }
 
-  public static Multimap<String, SpringValueDefinition> getBeanName2SpringValueDefinitions() {
-    return beanName2SpringValueDefinitions;
+  public static Multimap<String, SpringValueDefinition> getBeanName2SpringValueDefinitions(BeanDefinitionRegistry registry) {
+    Multimap<String, SpringValueDefinition> springValueDefinitions = beanName2SpringValueDefinitions.get(registry);
+    if (springValueDefinitions == null) {
+      springValueDefinitions = LinkedListMultimap.create();
+    }
+
+    return springValueDefinitions;
   }
 
   private void processPropertyValues(BeanDefinitionRegistry beanRegistry) {
-    if (!initialized.compareAndSet(false, true)) {
+    if (!PROPERTY_VALUES_PROCESSED_BEAN_FACTORIES.add(beanRegistry)) {
       // already initialized
       return;
     }
+
+    if (!beanName2SpringValueDefinitions.containsKey(beanRegistry)) {
+      beanName2SpringValueDefinitions.put(beanRegistry, LinkedListMultimap.<String, SpringValueDefinition>create());
+    }
+
+    Multimap<String, SpringValueDefinition> springValueDefinitions = beanName2SpringValueDefinitions.get(beanRegistry);
 
     String[] beanNames = beanRegistry.getBeanDefinitionNames();
     for (String beanName : beanNames) {
@@ -82,16 +111,9 @@ public class SpringValueDefinitionProcessor implements BeanDefinitionRegistryPos
         }
 
         for (String key : keys) {
-          beanName2SpringValueDefinitions.put(beanName,
-              new SpringValueDefinition(key, placeholder, propertyValue.getName()));
+          springValueDefinitions.put(beanName, new SpringValueDefinition(key, placeholder, propertyValue.getName()));
         }
       }
     }
-  }
-
-  //only for test
-  private static void reset() {
-    initialized.set(false);
-    beanName2SpringValueDefinitions.clear();
   }
 }

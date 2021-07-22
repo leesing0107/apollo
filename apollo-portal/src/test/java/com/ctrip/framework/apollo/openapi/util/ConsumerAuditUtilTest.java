@@ -1,27 +1,39 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.openapi.util;
-
-import com.google.common.util.concurrent.SettableFuture;
 
 import com.ctrip.framework.apollo.openapi.entity.ConsumerAudit;
 import com.ctrip.framework.apollo.openapi.service.ConsumerService;
-
+import com.google.common.util.concurrent.SettableFuture;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import javax.servlet.http.HttpServletRequest;
-
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.anyCollectionOf;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
@@ -40,8 +52,7 @@ public class ConsumerAuditUtilTest {
 
   @Before
   public void setUp() throws Exception {
-    consumerAuditUtil = new ConsumerAuditUtil();
-    ReflectionTestUtils.setField(consumerAuditUtil, "consumerService", consumerService);
+    consumerAuditUtil = new ConsumerAuditUtil(consumerService);
     ReflectionTestUtils.setField(consumerAuditUtil, "BATCH_TIMEOUT", batchTimeout);
     ReflectionTestUtils.setField(consumerAuditUtil, "BATCH_TIMEUNIT", batchTimeUnit);
     consumerAuditUtil.afterPropertiesSet();
@@ -65,15 +76,12 @@ public class ConsumerAuditUtilTest {
 
     SettableFuture<List<ConsumerAudit>> result = SettableFuture.create();
 
-    doAnswer(new Answer<Void>() {
-      @Override
-      public Void answer(InvocationOnMock invocation) throws Throwable {
-        Object[] args = invocation.getArguments();
-        result.set((List<ConsumerAudit>) args[0]);
+    doAnswer((Answer<Void>) invocation -> {
+      Object[] args = invocation.getArguments();
+      result.set((List<ConsumerAudit>) args[0]);
 
-        return null;
-      }
-    }).when(consumerService).createConsumerAudits(anyCollectionOf(ConsumerAudit.class));
+      return null;
+    }).when(consumerService).createConsumerAudits(anyCollection());
 
     consumerAuditUtil.audit(request, someConsumerId);
 

@@ -1,21 +1,34 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.portal.spi.defaultImpl;
-
-import com.ctrip.framework.apollo.portal.service.RolePermissionService;
-import com.google.common.collect.FluentIterable;
-import com.google.common.collect.Sets;
 
 import com.ctrip.framework.apollo.common.entity.BaseEntity;
 import com.ctrip.framework.apollo.portal.AbstractIntegrationTest;
+import com.ctrip.framework.apollo.portal.entity.bo.UserInfo;
 import com.ctrip.framework.apollo.portal.entity.po.Permission;
 import com.ctrip.framework.apollo.portal.entity.po.Role;
 import com.ctrip.framework.apollo.portal.entity.po.RolePermission;
-import com.ctrip.framework.apollo.portal.entity.bo.UserInfo;
 import com.ctrip.framework.apollo.portal.entity.po.UserRole;
 import com.ctrip.framework.apollo.portal.repository.PermissionRepository;
 import com.ctrip.framework.apollo.portal.repository.RolePermissionRepository;
 import com.ctrip.framework.apollo.portal.repository.RoleRepository;
 import com.ctrip.framework.apollo.portal.repository.UserRoleRepository;
-
+import com.ctrip.framework.apollo.portal.service.RolePermissionService;
+import com.google.common.collect.Sets;
 import org.junit.Before;
 import org.junit.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +36,7 @@ import org.springframework.test.context.jdbc.Sql;
 
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -67,7 +81,7 @@ public class RolePermissionServiceTest extends AbstractIntegrationTest {
 
     Permission created = rolePermissionService.createPermission(somePermission);
 
-    Permission createdFromDB = permissionRepository.findOne(created.getId());
+    Permission createdFromDB = permissionRepository.findById(created.getId()).orElse(null);
 
     assertEquals(somePermissionType, createdFromDB.getPermissionType());
     assertEquals(someTargetId, createdFromDB.getTargetId());
@@ -99,11 +113,9 @@ public class RolePermissionServiceTest extends AbstractIntegrationTest {
     Set<Permission> created =
         rolePermissionService.createPermissions(Sets.newHashSet(somePermission, anotherPermission));
 
-    Set<Long> permissionIds =
-        FluentIterable.from(created).transform(BaseEntity::getId)
-            .toSet();
+    Set<Long> permissionIds = created.stream().map(BaseEntity::getId).collect(Collectors.toSet());
 
-    Iterable<Permission> permissionsFromDB = permissionRepository.findAll(permissionIds);
+    Iterable<Permission> permissionsFromDB = permissionRepository.findAllById(permissionIds);
 
     Set<String> targetIds = Sets.newHashSet();
     Set<String> permissionTypes = Sets.newHashSet();
@@ -145,13 +157,11 @@ public class RolePermissionServiceTest extends AbstractIntegrationTest {
 
     Role created = rolePermissionService.createRoleWithPermissions(role, permissionIds);
 
-    Role createdFromDB = roleRepository.findOne(created.getId());
+    Role createdFromDB = roleRepository.findById(created.getId()).orElse(null);
     List<RolePermission> rolePermissions =
         rolePermissionRepository.findByRoleIdIn(Sets.newHashSet(createdFromDB.getId()));
 
-    Set<Long> rolePermissionIds =
-        FluentIterable.from(rolePermissions)
-            .transform(RolePermission::getPermissionId).toSet();
+    Set<Long> rolePermissionIds = rolePermissions.stream().map(RolePermission::getPermissionId).collect(Collectors.toSet());
 
     assertEquals(someRoleName, createdFromDB.getRoleName());
     assertEquals(2, rolePermissionIds.size());
@@ -279,7 +289,7 @@ public class RolePermissionServiceTest extends AbstractIntegrationTest {
 
     Set<UserInfo> users = rolePermissionService.queryUsersWithRole(someRoleName);
 
-    Set<String> userIds = FluentIterable.from(users).transform(UserInfo::getUserId).toSet();
+    Set<String> userIds = users.stream().map(UserInfo::getUserId).collect(Collectors.toSet());
 
     assertTrue(userIds.containsAll(Sets.newHashSet("someUser", "anotherUser")));
   }

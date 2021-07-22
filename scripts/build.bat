@@ -1,3 +1,18 @@
+rem
+rem Copyright 2021 Apollo Authors
+rem
+rem Licensed under the Apache License, Version 2.0 (the "License");
+rem you may not use this file except in compliance with the License.
+rem You may obtain a copy of the License at
+rem
+rem http://www.apache.org/licenses/LICENSE-2.0
+rem
+rem Unless required by applicable law or agreed to in writing, software
+rem distributed under the License is distributed on an "AS IS" BASIS,
+rem WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+rem See the License for the specific language governing permissions and
+rem limitations under the License.
+rem
 @echo off
 
 rem apollo config db info
@@ -36,11 +51,5 @@ echo "==== starting to build portal ===="
 call mvn clean package -DskipTests -pl apollo-portal -am -Dapollo_profile=github,auth -Dspring_datasource_url=%apollo_portal_db_url% -Dspring_datasource_username=%apollo_portal_db_username% -Dspring_datasource_password=%apollo_portal_db_password% %META_SERVERS_OPTS%
 
 echo "==== building portal finished ===="
-
-echo "==== starting to build client ===="
-
-call mvn clean install -DskipTests -pl apollo-client -am %META_SERVERS_OPTS%
-
-echo "==== building client finished ===="
 
 pause

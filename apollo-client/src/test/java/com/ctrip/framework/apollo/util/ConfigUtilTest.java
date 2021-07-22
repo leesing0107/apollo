@@ -1,16 +1,38 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.util;
 
 import com.ctrip.framework.apollo.core.ConfigConsts;
 
+import com.ctrip.framework.apollo.core.ApolloClientSystemConsts;
+import com.ctrip.framework.apollo.util.factory.PropertiesFactory;
+import java.io.File;
 import org.junit.After;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 /**
  * @author Jason Song(song_s@ctrip.com)
  */
 public class ConfigUtilTest {
+
   @After
   public void tearDown() throws Exception {
     System.clearProperty(ConfigConsts.APOLLO_CLUSTER_KEY);
@@ -22,6 +44,9 @@ public class ConfigUtilTest {
     System.clearProperty("apollo.configCacheSize");
     System.clearProperty("apollo.longPollingInitialDelayInMills");
     System.clearProperty("apollo.autoUpdateInjectedSpringProperties");
+    System.clearProperty(ApolloClientSystemConsts.APOLLO_CACHE_DIR);
+    System.clearProperty(PropertiesFactory.APOLLO_PROPERTY_ORDER_ENABLE);
+    System.clearProperty(ApolloClientSystemConsts.APOLLO_PROPERTY_NAMES_CACHE_ENABLE);
   }
 
   @Test
@@ -157,7 +182,8 @@ public class ConfigUtilTest {
   @Test
   public void testCustomizeLongPollingInitialDelayInMills() throws Exception {
     long someLongPollingDelayInMills = 1;
-    System.setProperty("apollo.longPollingInitialDelayInMills", String.valueOf(someLongPollingDelayInMills));
+    System.setProperty("apollo.longPollingInitialDelayInMills",
+        String.valueOf(someLongPollingDelayInMills));
 
     ConfigUtil configUtil = new ConfigUtil();
 
@@ -184,5 +210,58 @@ public class ConfigUtilTest {
 
     assertEquals(someAutoUpdateInjectedSpringProperties,
         configUtil.isAutoUpdateInjectedSpringPropertiesEnabled());
+  }
+
+  @Test
+  public void testLocalCacheDirWithSystemProperty() throws Exception {
+    String someCacheDir = "someCacheDir";
+    String someAppId = "someAppId";
+
+    System.setProperty(ApolloClientSystemConsts.APOLLO_CACHE_DIR, someCacheDir);
+
+    ConfigUtil configUtil = spy(new ConfigUtil());
+
+    doReturn(someAppId).when(configUtil).getAppId();
+
+    assertEquals(someCacheDir + File.separator + someAppId, configUtil.getDefaultLocalCacheDir());
+  }
+
+  @Test
+  public void testDefaultLocalCacheDir() throws Exception {
+    String someAppId = "someAppId";
+
+    ConfigUtil configUtil = spy(new ConfigUtil());
+
+    doReturn(someAppId).when(configUtil).getAppId();
+
+    doReturn(true).when(configUtil).isOSWindows();
+
+    assertEquals("C:\\opt\\data\\" + someAppId, configUtil.getDefaultLocalCacheDir());
+
+    doReturn(false).when(configUtil).isOSWindows();
+
+    assertEquals("/opt/data/" + someAppId, configUtil.getDefaultLocalCacheDir());
+  }
+
+  @Test
+  public void testCustomizePropertiesOrdered() {
+    boolean propertiesOrdered = true;
+    System.setProperty(PropertiesFactory.APOLLO_PROPERTY_ORDER_ENABLE,
+        String.valueOf(propertiesOrdered));
+
+    ConfigUtil configUtil = new ConfigUtil();
+
+    assertEquals(propertiesOrdered,
+        configUtil.isPropertiesOrderEnabled());
+  }
+
+  @Test
+  public void test() {
+    ConfigUtil configUtil = new ConfigUtil();
+    assertFalse(configUtil.isPropertyNamesCacheEnabled());
+
+    System.setProperty(ApolloClientSystemConsts.APOLLO_PROPERTY_NAMES_CACHE_ENABLE, "true");
+    configUtil = new ConfigUtil();
+    assertTrue(configUtil.isPropertyNamesCacheEnabled());
   }
 }

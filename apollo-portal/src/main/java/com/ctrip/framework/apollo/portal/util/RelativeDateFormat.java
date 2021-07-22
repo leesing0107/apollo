@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.portal.util;
 
 import org.apache.commons.lang.time.FastDateFormat;
@@ -12,11 +28,11 @@ public class RelativeDateFormat {
   private static final long ONE_HOUR = 3600000L;
   private static final long ONE_DAY = 86400000L;
 
-  private static final String ONE_SECOND_AGO = "秒前";
-  private static final String ONE_MINUTE_AGO = "分钟前";
-  private static final String ONE_HOUR_AGO = "小时前";
-  private static final String ONE_DAY_AGO = "天前";
-  private static final String ONE_MONTH_AGO = "月前";
+  private static final String ONE_SECOND_AGO = " seconds ago";
+  private static final String ONE_MINUTE_AGO = " minutes ago";
+  private static final String ONE_HOUR_AGO = " hours ago";
+  private static final String ONE_DAY_AGO = " days ago";
+  private static final String ONE_MONTH_AGO = " months ago";
 
   public static String format(Date date) {
     if (date.after(new Date())) {
@@ -39,11 +55,11 @@ public class RelativeDateFormat {
 
     Date lastDayBeginTime = getDateOffset(-1);
     if (date.after(lastDayBeginTime)) {
-      return "昨天";
+      return "yesterday";
     }
     Date lastTwoDaysBeginTime = getDateOffset(-2);
     if (date.after(lastTwoDaysBeginTime)) {
-      return "前天";
+      return "the day before yesterday";
     }
     if (delta < 30L * ONE_DAY) {
       long days = toDays(delta);
@@ -53,9 +69,8 @@ public class RelativeDateFormat {
     long months = toMonths(delta);
     if (months <= 3) {
       return (months <= 0 ? 1 : months) + ONE_MONTH_AGO;
-    } else {
-      return TIMESTAMP_FORMAT.format(date);
     }
+    return TIMESTAMP_FORMAT.format(date);
   }
 
   private static long toSeconds(long date) {
@@ -81,7 +96,7 @@ public class RelativeDateFormat {
   public static Date getDateOffset(int offset) {
     Calendar calendar = Calendar.getInstance();
     calendar.setTime(new Date());
-    calendar.add(calendar.DATE, offset);
+    calendar.add(Calendar.DATE, offset);
 
     return getDayBeginTime(calendar.getTime());
   }

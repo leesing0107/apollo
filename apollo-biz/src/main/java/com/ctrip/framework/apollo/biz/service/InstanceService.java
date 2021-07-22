@@ -1,14 +1,28 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.biz.service;
-
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
 
 import com.ctrip.framework.apollo.biz.entity.Instance;
 import com.ctrip.framework.apollo.biz.entity.InstanceConfig;
 import com.ctrip.framework.apollo.biz.repository.InstanceConfigRepository;
 import com.ctrip.framework.apollo.biz.repository.InstanceRepository;
-
-import org.springframework.beans.factory.annotation.Autowired;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import java.util.Objects;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -29,11 +43,15 @@ import java.util.stream.Collectors;
  */
 @Service
 public class InstanceService {
-  @Autowired
-  private InstanceRepository instanceRepository;
+  private final InstanceRepository instanceRepository;
+  private final InstanceConfigRepository instanceConfigRepository;
 
-  @Autowired
-  private InstanceConfigRepository instanceConfigRepository;
+  public InstanceService(
+      final InstanceRepository instanceRepository,
+      final InstanceConfigRepository instanceConfigRepository) {
+    this.instanceRepository = instanceRepository;
+    this.instanceConfigRepository = instanceConfigRepository;
+  }
 
   public Instance findInstance(String appId, String clusterName, String dataCenter, String ip) {
     return instanceRepository.findByAppIdAndClusterNameAndDataCenterAndIp(appId, clusterName,
@@ -41,10 +59,7 @@ public class InstanceService {
   }
 
   public List<Instance> findInstancesByIds(Set<Long> instanceIds) {
-    Iterable<Instance> instances = instanceRepository.findAll(instanceIds);
-    if (instances == null) {
-      return Collections.emptyList();
-    }
+    Iterable<Instance> instances = instanceRepository.findAllById(instanceIds);
     return Lists.newArrayList(instances);
   }
 
@@ -64,10 +79,8 @@ public class InstanceService {
 
   public Page<InstanceConfig> findActiveInstanceConfigsByReleaseKey(String releaseKey, Pageable
       pageable) {
-    Page<InstanceConfig> instanceConfigs = instanceConfigRepository
-        .findByReleaseKeyAndDataChangeLastModifiedTimeAfter(releaseKey,
+    return instanceConfigRepository.findByReleaseKeyAndDataChangeLastModifiedTimeAfter(releaseKey,
             getValidInstanceConfigDate(), pageable);
-    return instanceConfigs;
   }
 
   public Page<Instance> findInstancesByNamespace(String appId, String clusterName, String
@@ -90,7 +103,7 @@ public class InstanceService {
       appId, String clusterName, String
                                                                      namespaceName, Pageable
                                                                      pageable) {
-    Page<Object[]> instanceIdResult = instanceConfigRepository
+    Page<Object> instanceIdResult = instanceConfigRepository
         .findInstanceIdsByNamespaceAndInstanceAppId(instanceAppId, appId, clusterName,
             namespaceName, getValidInstanceConfigDate(), pageable);
 
@@ -115,7 +128,7 @@ public class InstanceService {
         }
 
         return null;
-      }).filter((Long value) -> value != null).collect(Collectors.toSet());
+      }).filter(Objects::nonNull).collect(Collectors.toSet());
       instances = findInstancesByIds(instanceIds);
     }
 
@@ -159,7 +172,7 @@ public class InstanceService {
 
   @Transactional
   public InstanceConfig updateInstanceConfig(InstanceConfig instanceConfig) {
-    InstanceConfig existedInstanceConfig = instanceConfigRepository.findOne(instanceConfig.getId());
+    InstanceConfig existedInstanceConfig = instanceConfigRepository.findById(instanceConfig.getId()).orElse(null);
     Preconditions.checkArgument(existedInstanceConfig != null, String.format(
         "Instance config %d doesn't exist", instanceConfig.getId()));
 

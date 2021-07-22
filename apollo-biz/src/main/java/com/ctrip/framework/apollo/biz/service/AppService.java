@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.biz.service;
 
 import com.ctrip.framework.apollo.biz.entity.Audit;
@@ -5,8 +21,6 @@ import com.ctrip.framework.apollo.biz.repository.AppRepository;
 import com.ctrip.framework.apollo.common.entity.App;
 import com.ctrip.framework.apollo.common.exception.BadRequestException;
 import com.ctrip.framework.apollo.common.exception.ServiceException;
-
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -18,20 +32,22 @@ import java.util.Objects;
 @Service
 public class AppService {
 
-  @Autowired
-  private AppRepository appRepository;
+  private final AppRepository appRepository;
+  private final AuditService auditService;
 
-  @Autowired
-  private AuditService auditService;
+  public AppService(final AppRepository appRepository, final AuditService auditService) {
+    this.appRepository = appRepository;
+    this.auditService = auditService;
+  }
 
   public boolean isAppIdUnique(String appId) {
     Objects.requireNonNull(appId, "AppId must not be null");
     return Objects.isNull(appRepository.findByAppId(appId));
   }
-  
+
   @Transactional
   public void delete(long id, String operator) {
-    App app = appRepository.findOne(id);
+    App app = appRepository.findById(id).orElse(null);
     if (app == null) {
       return;
     }
@@ -63,10 +79,10 @@ public class AppService {
     }
     entity.setId(0);//protection
     App app = appRepository.save(entity);
-    
+
     auditService.audit(App.class.getSimpleName(), app.getId(), Audit.OP.INSERT,
         app.getDataChangeCreatedBy());
-    
+
     return app;
   }
 
@@ -87,9 +103,9 @@ public class AppService {
     managedApp.setDataChangeLastModifiedBy(app.getDataChangeLastModifiedBy());
 
     managedApp = appRepository.save(managedApp);
-    
+
     auditService.audit(App.class.getSimpleName(), managedApp.getId(), Audit.OP.UPDATE,
         managedApp.getDataChangeLastModifiedBy());
-    
+
   }
 }

@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.biz.repository;
 
 import com.ctrip.framework.apollo.biz.entity.InstanceConfig;
@@ -35,13 +51,13 @@ public interface InstanceConfigRepository extends PagingAndSortingRepository<Ins
       value = "select b.Id from `InstanceConfig` a inner join `Instance` b on b.Id =" +
           " a.`InstanceId` where a.`ConfigAppId` = :configAppId and a.`ConfigClusterName` = " +
           ":clusterName and a.`ConfigNamespaceName` = :namespaceName and a.`DataChange_LastTime` " +
-          "> :validDate and b.`AppId` = :instanceAppId and ?#{#pageable.pageSize} > 0",
+          "> :validDate and b.`AppId` = :instanceAppId",
       countQuery = "select count(1) from `InstanceConfig` a inner join `Instance` b on b.id =" +
           " a.`InstanceId` where a.`ConfigAppId` = :configAppId and a.`ConfigClusterName` = " +
           ":clusterName and a.`ConfigNamespaceName` = :namespaceName and a.`DataChange_LastTime` " +
           "> :validDate and b.`AppId` = :instanceAppId",
       nativeQuery = true)
-  Page<Object[]> findInstanceIdsByNamespaceAndInstanceAppId(
+  Page<Object> findInstanceIdsByNamespaceAndInstanceAppId(
       @Param("instanceAppId") String instanceAppId, @Param("configAppId") String configAppId,
       @Param("clusterName") String clusterName, @Param("namespaceName") String namespaceName,
       @Param("validDate") Date validDate, Pageable pageable);

@@ -1,6 +1,22 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo;
 
-import java.io.File;
+import com.ctrip.framework.apollo.core.ConfigConsts;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.concurrent.TimeUnit;
@@ -16,6 +32,7 @@ import org.eclipse.jetty.server.handler.AbstractHandler;
 import org.eclipse.jetty.server.handler.ContextHandler;
 import org.eclipse.jetty.server.handler.ContextHandlerCollection;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -23,17 +40,15 @@ import com.ctrip.framework.apollo.build.MockInjector;
 import com.ctrip.framework.apollo.core.dto.ServiceDTO;
 import com.ctrip.framework.apollo.core.enums.Env;
 import com.ctrip.framework.apollo.core.utils.ClassLoaderUtil;
-import com.ctrip.framework.apollo.internals.DefaultInjector;
 import com.ctrip.framework.apollo.util.ConfigUtil;
-import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
-import com.google.common.io.Files;
 import com.google.gson.Gson;
 
 /**
  * @author Jason Song(song_s@ctrip.com)
  */
-public abstract class BaseIntegrationTest{
+public abstract class BaseIntegrationTest {
+
   private static final int PORT = findFreePort();
   private static final String metaServiceUrl = "http://localhost:" + PORT;
   private static final String someAppName = "someAppName";
@@ -44,14 +59,18 @@ public abstract class BaseIntegrationTest{
   protected static String someDataCenter;
   protected static int refreshInterval;
   protected static TimeUnit refreshTimeUnit;
+  protected static boolean propertiesOrderEnabled;
   private Server server;
   protected Gson gson = new Gson();
 
   @BeforeClass
   public static void beforeClass() throws Exception {
-    File apolloEnvPropertiesFile = new File(ClassLoaderUtil.getClassPath(), "apollo-env.properties");
-    Files.write("dev.meta=" + metaServiceUrl, apolloEnvPropertiesFile, Charsets.UTF_8);
-    apolloEnvPropertiesFile.deleteOnExit();
+    System.setProperty(ConfigConsts.APOLLO_META_KEY, metaServiceUrl);
+  }
+
+  @AfterClass
+  public static void afterClass() throws Exception {
+    System.clearProperty(ConfigConsts.APOLLO_META_KEY);
   }
 
   @Before
@@ -61,17 +80,25 @@ public abstract class BaseIntegrationTest{
     someDataCenter = "someDC";
     refreshInterval = 5;
     refreshTimeUnit = TimeUnit.MINUTES;
-
-    //as ConfigService is singleton, so we must manually clear its container
-    ConfigService.reset();
-    MockInjector.reset();
-    MockInjector.setDelegate(new DefaultInjector());
+    propertiesOrderEnabled = false;
 
     MockInjector.setInstance(ConfigUtil.class, new MockConfigUtil());
   }
 
+  @After
+  public void tearDown() throws Exception {
+    //as ConfigService is singleton, so we must manually clear its container
+    ConfigService.reset();
+    MockInjector.reset();
+
+    if (server != null && server.isStarted()) {
+      server.stop();
+    }
+  }
+
   /**
    * init and start a jetty server, remember to call server.stop when the task is finished
+   *
    * @param handlers
    * @throws Exception
    */
@@ -86,13 +113,6 @@ public abstract class BaseIntegrationTest{
     server.start();
 
     return server;
-  }
-
-  @After
-  public void tearDown() throws Exception {
-    if (server != null && server.isStarted()) {
-      server.stop();
-    }
   }
 
   protected ContextHandler mockMetaServerHandler() {
@@ -110,7 +130,7 @@ public abstract class BaseIntegrationTest{
     context.setHandler(new AbstractHandler() {
       @Override
       public void handle(String target, Request baseRequest, HttpServletRequest request,
-                         HttpServletResponse response) throws IOException, ServletException {
+          HttpServletResponse response) throws IOException, ServletException {
         if (failedAtFirstTime && counter.incrementAndGet() == 1) {
           response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
           baseRequest.setHandled(true);
@@ -136,7 +156,12 @@ public abstract class BaseIntegrationTest{
     BaseIntegrationTest.refreshTimeUnit = refreshTimeUnit;
   }
 
+  protected void setPropertiesOrderEnabled(boolean propertiesOrderEnabled) {
+    BaseIntegrationTest.propertiesOrderEnabled = propertiesOrderEnabled;
+  }
+
   public static class MockConfigUtil extends ConfigUtil {
+
     @Override
     public String getAppId() {
       return someAppId;
@@ -196,13 +221,19 @@ public abstract class BaseIntegrationTest{
     public long getLongPollingInitialDelayInMills() {
       return 0;
     }
+
+    @Override
+    public boolean isPropertiesOrderEnabled() {
+      return propertiesOrderEnabled;
+    }
   }
 
   /**
    * Returns a free port number on localhost.
-   *
-   * Heavily inspired from org.eclipse.jdt.launching.SocketUtil (to avoid a dependency to JDT just because of this).
-   * Slightly improved with close() missing in JDT. And throws exception instead of returning -1.
+   * <p>
+   * Heavily inspired from org.eclipse.jdt.launching.SocketUtil (to avoid a dependency to JDT just
+   * because of this). Slightly improved with close() missing in JDT. And throws exception instead
+   * of returning -1.
    *
    * @return a free port number on localhost
    * @throws IllegalStateException if unable to find a free port
@@ -228,7 +259,8 @@ public abstract class BaseIntegrationTest{
         }
       }
     }
-    throw new IllegalStateException("Could not find a free TCP/IP port to start embedded Jetty HTTP Server on");
+    throw new IllegalStateException(
+        "Could not find a free TCP/IP port to start embedded Jetty HTTP Server on");
   }
 
 }

@@ -1,5 +1,40 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.internals;
 
+import com.ctrip.framework.apollo.build.ApolloInjector;
+import com.ctrip.framework.apollo.core.ConfigConsts;
+import com.ctrip.framework.apollo.core.dto.ApolloConfigNotification;
+import com.ctrip.framework.apollo.core.dto.ApolloNotificationMessages;
+import com.ctrip.framework.apollo.core.dto.ServiceDTO;
+import com.ctrip.framework.apollo.core.enums.ConfigFileFormat;
+import com.ctrip.framework.apollo.core.schedule.ExponentialSchedulePolicy;
+import com.ctrip.framework.apollo.core.schedule.SchedulePolicy;
+import com.ctrip.framework.apollo.core.signature.Signature;
+import com.ctrip.framework.apollo.core.utils.ApolloThreadFactory;
+import com.ctrip.framework.apollo.core.utils.StringUtils;
+import com.ctrip.framework.apollo.exceptions.ApolloConfigException;
+import com.ctrip.framework.apollo.tracer.Tracer;
+import com.ctrip.framework.apollo.tracer.spi.Transaction;
+import com.ctrip.framework.apollo.util.ConfigUtil;
+import com.ctrip.framework.apollo.util.ExceptionUtil;
+import com.ctrip.framework.apollo.util.http.HttpRequest;
+import com.ctrip.framework.apollo.util.http.HttpResponse;
+import com.ctrip.framework.apollo.util.http.HttpClient;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import com.google.common.collect.HashMultimap;
@@ -12,28 +47,6 @@ import com.google.common.net.UrlEscapers;
 import com.google.common.reflect.TypeToken;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.gson.Gson;
-
-import com.ctrip.framework.apollo.build.ApolloInjector;
-import com.ctrip.framework.apollo.core.ConfigConsts;
-import com.ctrip.framework.apollo.core.dto.ApolloConfigNotification;
-import com.ctrip.framework.apollo.core.dto.ApolloNotificationMessages;
-import com.ctrip.framework.apollo.core.dto.ServiceDTO;
-import com.ctrip.framework.apollo.core.enums.ConfigFileFormat;
-import com.ctrip.framework.apollo.core.schedule.ExponentialSchedulePolicy;
-import com.ctrip.framework.apollo.core.schedule.SchedulePolicy;
-import com.ctrip.framework.apollo.core.utils.ApolloThreadFactory;
-import com.ctrip.framework.apollo.exceptions.ApolloConfigException;
-import com.ctrip.framework.apollo.tracer.Tracer;
-import com.ctrip.framework.apollo.tracer.spi.Transaction;
-import com.ctrip.framework.apollo.util.ConfigUtil;
-import com.ctrip.framework.apollo.util.ExceptionUtil;
-import com.ctrip.framework.apollo.util.http.HttpRequest;
-import com.ctrip.framework.apollo.util.http.HttpResponse;
-import com.ctrip.framework.apollo.util.http.HttpUtil;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.lang.reflect.Type;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +56,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * @author Jason Song(song_s@ctrip.com)
@@ -64,9 +79,9 @@ public class RemoteConfigLongPollService {
   private final ConcurrentMap<String, Long> m_notifications;
   private final Map<String, ApolloNotificationMessages> m_remoteNotificationMessages;//namespaceName -> watchedKey -> notificationId
   private Type m_responseType;
-  private Gson gson;
+  private static final Gson GSON = new Gson();
   private ConfigUtil m_configUtil;
-  private HttpUtil m_httpUtil;
+  private HttpClient m_httpClient;
   private ConfigServiceLocator m_serviceLocator;
 
   /**
@@ -84,9 +99,8 @@ public class RemoteConfigLongPollService {
     m_remoteNotificationMessages = Maps.newConcurrentMap();
     m_responseType = new TypeToken<List<ApolloConfigNotification>>() {
     }.getType();
-    gson = new Gson();
     m_configUtil = ApolloInjector.getInstance(ConfigUtil.class);
-    m_httpUtil = ApolloInjector.getInstance(HttpUtil.class);
+    m_httpClient = ApolloInjector.getInstance(HttpClient.class);
     m_serviceLocator = ApolloInjector.getInstance(ConfigServiceLocator.class);
     m_longPollRateLimiter = RateLimiter.create(m_configUtil.getLongPollQPS());
   }
@@ -109,6 +123,7 @@ public class RemoteConfigLongPollService {
       final String appId = m_configUtil.getAppId();
       final String cluster = m_configUtil.getCluster();
       final String dataCenter = m_configUtil.getDataCenter();
+      final String secret = m_configUtil.getAccessKeySecret();
       final long longPollingInitialDelayInMills = m_configUtil.getLongPollingInitialDelayInMills();
       m_longPollingService.submit(new Runnable() {
         @Override
@@ -121,7 +136,7 @@ public class RemoteConfigLongPollService {
               //ignore
             }
           }
-          doLongPollingRefresh(appId, cluster, dataCenter);
+          doLongPollingRefresh(appId, cluster, dataCenter, secret);
         }
       });
     } catch (Throwable ex) {
@@ -137,7 +152,7 @@ public class RemoteConfigLongPollService {
     this.m_longPollingStopped.compareAndSet(false, true);
   }
 
-  private void doLongPollingRefresh(String appId, String cluster, String dataCenter) {
+  private void doLongPollingRefresh(String appId, String cluster, String dataCenter, String secret) {
     final Random random = new Random();
     ServiceDTO lastServiceDto = null;
     while (!m_longPollingStopped.get() && !Thread.currentThread().isInterrupted()) {
@@ -161,13 +176,18 @@ public class RemoteConfigLongPollService {
                 m_notifications);
 
         logger.debug("Long polling from {}", url);
+
         HttpRequest request = new HttpRequest(url);
         request.setReadTimeout(LONG_POLLING_READ_TIMEOUT);
+        if (!StringUtils.isBlank(secret)) {
+          Map<String, String> headers = Signature.buildHttpHeaders(url, appId, secret);
+          request.setHeaders(headers);
+        }
 
         transaction.addData("Url", url);
 
         final HttpResponse<List<ApolloConfigNotification>> response =
-            m_httpUtil.doGet(request, m_responseType);
+            m_httpClient.doGet(request, m_responseType);
 
         logger.debug("Long polling response: {}, url: {}", response.getStatusCode(), url);
         if (response.getStatusCode() == 200 && response.getBody() != null) {
@@ -301,7 +321,7 @@ public class RemoteConfigLongPollService {
       ApolloConfigNotification notification = new ApolloConfigNotification(entry.getKey(), entry.getValue());
       notifications.add(notification);
     }
-    return gson.toJson(notifications);
+    return GSON.toJson(notifications);
   }
 
   private List<ServiceDTO> getConfigServices() {

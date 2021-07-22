@@ -1,3 +1,19 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.adminservice.aop;
 
 
@@ -12,12 +28,10 @@ import com.ctrip.framework.apollo.common.dto.ItemChangeSets;
 import com.ctrip.framework.apollo.common.dto.ItemDTO;
 import com.ctrip.framework.apollo.common.exception.BadRequestException;
 import com.ctrip.framework.apollo.common.exception.ServiceException;
-
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 
@@ -31,15 +45,21 @@ import org.springframework.stereotype.Component;
 public class NamespaceAcquireLockAspect {
   private static final Logger logger = LoggerFactory.getLogger(NamespaceAcquireLockAspect.class);
 
+  private final NamespaceLockService namespaceLockService;
+  private final NamespaceService namespaceService;
+  private final ItemService itemService;
+  private final BizConfig bizConfig;
 
-  @Autowired
-  private NamespaceLockService namespaceLockService;
-  @Autowired
-  private NamespaceService namespaceService;
-  @Autowired
-  private ItemService itemService;
-  @Autowired
-  private BizConfig bizConfig;
+  public NamespaceAcquireLockAspect(
+      final NamespaceLockService namespaceLockService,
+      final NamespaceService namespaceService,
+      final ItemService itemService,
+      final BizConfig bizConfig) {
+    this.namespaceLockService = namespaceLockService;
+    this.namespaceService = namespaceService;
+    this.itemService = itemService;
+    this.bizConfig = bizConfig;
+  }
 
 
   //create item

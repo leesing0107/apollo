@@ -1,9 +1,21 @@
+/*
+ * Copyright 2021 Apollo Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
 package com.ctrip.framework.apollo.adminservice.aop;
 
-
-import com.google.common.collect.MapDifference;
-import com.google.common.collect.Maps;
-import com.google.gson.Gson;
 
 import com.ctrip.framework.apollo.biz.config.BizConfig;
 import com.ctrip.framework.apollo.biz.entity.Item;
@@ -18,10 +30,11 @@ import com.ctrip.framework.apollo.common.dto.ItemChangeSets;
 import com.ctrip.framework.apollo.common.dto.ItemDTO;
 import com.ctrip.framework.apollo.common.exception.BadRequestException;
 import com.ctrip.framework.apollo.core.utils.StringUtils;
-
+import com.google.common.collect.MapDifference;
+import com.google.common.collect.Maps;
+import com.google.gson.Gson;
 import org.aspectj.lang.annotation.After;
 import org.aspectj.lang.annotation.Aspect;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -40,18 +53,26 @@ import java.util.Map;
 @Component
 public class NamespaceUnlockAspect {
 
-  private Gson gson = new Gson();
+  private static final Gson GSON = new Gson();
 
-  @Autowired
-  private NamespaceLockService namespaceLockService;
-  @Autowired
-  private NamespaceService namespaceService;
-  @Autowired
-  private ItemService itemService;
-  @Autowired
-  private ReleaseService releaseService;
-  @Autowired
-  private BizConfig bizConfig;
+  private final NamespaceLockService namespaceLockService;
+  private final NamespaceService namespaceService;
+  private final ItemService itemService;
+  private final ReleaseService releaseService;
+  private final BizConfig bizConfig;
+
+  public NamespaceUnlockAspect(
+      final NamespaceLockService namespaceLockService,
+      final NamespaceService namespaceService,
+      final ItemService itemService,
+      final ReleaseService releaseService,
+      final BizConfig bizConfig) {
+    this.namespaceLockService = namespaceLockService;
+    this.namespaceService = namespaceService;
+    this.itemService = itemService;
+    this.releaseService = releaseService;
+    this.bizConfig = bizConfig;
+  }
 
 
   //create item
@@ -104,7 +125,7 @@ public class NamespaceUnlockAspect {
       return hasNormalItems(items);
     }
 
-    Map<String, String> releasedConfiguration = gson.fromJson(release.getConfigurations(), GsonType.CONFIG);
+    Map<String, String> releasedConfiguration = GSON.fromJson(release.getConfigurations(), GsonType.CONFIG);
     Map<String, String> configurationFromItems = generateConfigurationFromItems(namespace, items);
 
     MapDifference<String, String> difference = Maps.difference(releasedConfiguration, configurationFromItems);
@@ -134,7 +155,7 @@ public class NamespaceUnlockAspect {
     } else {//child namespace
       Release parentRelease = releaseService.findLatestActiveRelease(parentNamespace);
       if (parentRelease != null) {
-        configurationFromItems = gson.fromJson(parentRelease.getConfigurations(), GsonType.CONFIG);
+        configurationFromItems = GSON.fromJson(parentRelease.getConfigurations(), GsonType.CONFIG);
       }
       generateMapFromItems(namespaceItems, configurationFromItems);
     }
